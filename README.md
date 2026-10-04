@@ -35,22 +35,104 @@ Docker 구성과 명령은 [docker/README.md](docker/README.md)에 있습니다.
 
 결과는 `runs/po_validation_verified/sequence_metrics.csv`, `aggregate_metrics.csv`, `summary.json`에 있습니다. PGD-20은 16프레임 한 클립에서 평균 약 315초가 걸렸습니다. 단순히 프레임 수에 비례한다고 가정하면 이 PC에서 100개 × 64프레임 × epsilon 3종의 PGD만 약 105시간이므로, 본 평가 실행 시간을 별도로 확보해야 합니다. 이는 작은 검증 run으로부터의 거친 예상이며 실제 본 평가를 측정한 시간은 아닙니다.
 
-## 설치와 데이터
+## 데이터와 모델 가중치 다운로드
 
-PowerShell에서 다음 명령을 실행합니다. 이미 구성한 환경은 그대로 사용할 수 있습니다.
+아래 명령은 clone한 `tracking_attack` 폴더에서 실행합니다. 본 실험은 저자가 전처리해 배포한 WorldTrack NPZ와 정확한 Seq 체크포인트를 사용합니다. [공식 St4RTrack 다운로드 안내](https://github.com/HavenFeng/St4RTrack/blob/0f9a3f44a7ebac76600cd31ec9eea5228ad7db91/README.md#download-checkpoints)에서도 이 체크포인트를 권장합니다.
+
+### 공식 다운로드 링크
+
+| 파일 | 다운로드 위치 | 이 프로젝트에서 저장할 경로 |
+|---|---|---|
+| WorldTrack 전체 배포 폴더 | [WorldTrack mini-release](https://drive.google.com/drive/folders/1-JW88ru30irMYyFab_4YBQbGbd9tKpXV) | `data/worldtrack_release/` |
+| Point Odyssey NPZ 50개 | [po_mini 폴더](https://drive.google.com/drive/folders/1ToXkVJKlHs6xhCBaY4LB29whViH4RAHn) | `data/worldtrack_release/po_mini/*.npz` |
+| Dynamic Replica NPZ 50개 | [ds_mini 폴더](https://drive.google.com/drive/folders/1jl9Og6MWLj1q3runKkpkE5iH14ba6_3T) | `data/worldtrack_release/ds_mini/*.npz` |
+| `St4RTrack_Seqmode_reweightMax5.pth` | [정확한 Seq 체크포인트 파일](https://drive.google.com/file/d/1ElgLYxWNHmps7-xvmHz2D6w4B0kZbBd1/view), [저자 체크포인트 폴더](https://drive.google.com/drive/folders/1uSfnZbzqa8pfIb6k383-BerLQ0m9-R1l) | `assets/checkpoints/St4RTrack_Seqmode_reweightMax5.pth` |
+
+모델 파일의 크기는 **4,411,404,231 bytes(약 4.41GB)**입니다. 데이터와 모델은 Git 저장소에 포함하지 않으며 로컬에 별도로 받습니다.
+
+### 자동 다운로드: Windows PowerShell
+
+Python 3.12가 설치되어 있어야 합니다. 다운로드만 할 때는 아래 두 Python 패키지만 필요하며, 호스트의 PyTorch 또는 GPU를 사용하지 않습니다. 이미 `.venv`가 준비되어 있으면 첫 줄은 생략합니다.
 
 ```powershell
-cd C:\code\st4rtrack_pgd
-.\scripts\bootstrap.ps1 -DownloadAssets
-```
-
-다운로드 재시도 또는 데이터만 받을 때:
-
-```powershell
+py -3.12 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install "gdown>=6.4" requests
 .\.venv\Scripts\python.exe scripts\download_assets.py
 ```
 
-다운로더는 PO·DR 각 50개와 정확한 Seq 체크포인트를 받습니다. 다운로드 목록, 공개 폴더 snapshot, 파일 크기, SHA-256, 오류를 `assets`에 기록합니다. 부분 다운로드를 재개하며 HTML/잘린 파일은 거부합니다. 데이터 위치는 `data/worldtrack_release/{po_mini,ds_mini}/*.npz`입니다. ADT·PStudio는 사용자가 받은 공식 NPZ를 같은 형식으로 추가하면 runner에서 사용할 수 있습니다.
+기본값은 **PO 50개 + DR 50개 + Seq 체크포인트**를 모두 다운로드합니다. 현재 고정 8클립 실험의 명단은 [재현 안내](docs/EXPERIMENT_REPRODUCTION.md#4-데이터셋과-고정-8클립-명단)에 있습니다. `--limit 4`는 공개 폴더 목록의 앞 4개를 받을 뿐이므로 본 실험의 선정 클립과 일치하지 않습니다.
+
+### 자동 다운로드: Linux
+
+Python 3.12와 venv 기능이 설치된 환경에서 실행합니다.
+
+```bash
+python3.12 -m venv .venv
+.venv/bin/python -m pip install 'gdown>=6.4' requests
+.venv/bin/python scripts/download_assets.py
+```
+
+### 가중치만 또는 데이터만 받기
+
+Windows에서는 다음 옵션을 사용합니다. Linux에서는 Python 실행 경로를 `.venv/bin/python`으로 바꾸면 됩니다.
+
+```powershell
+# 가중치만 다운로드
+.\.venv\Scripts\python.exe scripts\download_assets.py --checkpoint-only
+
+# PO와 DR 데이터만 다운로드
+.\.venv\Scripts\python.exe scripts\download_assets.py --skip-checkpoint
+
+# 특정 데이터셋만 다운로드
+.\.venv\Scripts\python.exe scripts\download_assets.py --datasets po_mini --skip-checkpoint
+.\.venv\Scripts\python.exe scripts\download_assets.py --datasets ds_mini --skip-checkpoint
+```
+
+다운로드가 중단되면 같은 명령을 다시 실행합니다. 완료된 정상 파일은 재사용하고 부분 다운로드는 재개합니다. 다운로드 목록, 공개 폴더 snapshot, 파일별 SHA-256, 실패 내역은 `assets/download_manifest.json`과 `assets/*_files.json` 등에 기록합니다. 다운로더는 파일 크기와 ZIP/NPZ/PyTorch archive 형식을 검사하여 HTML 응답과 잘린 파일을 거부합니다. Google Drive 다운로드 제한이나 네트워크 오류가 발생하면 기록의 `failed` 항목을 확인하고 나중에 재시도합니다. 동시 다운로드 수를 줄이려면 `--workers 1`을 추가합니다.
+
+### 수동 다운로드와 저장 경로
+
+브라우저에서 위 공식 링크를 열어 받아도 됩니다. 폴더 다운로드가 ZIP으로 묶여 내려오면 압축을 풀어 **원본 NPZ 파일**을 아래 경로에 둡니다. NPZ 내부 파일을 풀거나 다시 압축하지 않습니다. 다른 variant의 가중치를 이름만 바꿔 사용하지 않습니다.
+
+```text
+tracking_attack/
+├── assets/checkpoints/St4RTrack_Seqmode_reweightMax5.pth
+└── data/worldtrack_release/
+    ├── po_mini/*.npz
+    └── ds_mini/*.npz
+```
+
+가중치의 예상 SHA-256은 다음과 같습니다. 다운로드 후 실제 값과 비교합니다. Docker 스모크는 이 값과 일치하는지 검사합니다. 실험 runner는 모델 hash를 실행 기록에 남기고 manifest에 고정된 데이터 hash를 확인합니다.
+
+```text
+cae4712e0265f7d5ecadade19a0cb2ccf7b7e786fa0f230a80603a3437bcdfd3
+```
+
+```powershell
+# Windows
+Get-FileHash -Algorithm SHA256 assets\checkpoints\St4RTrack_Seqmode_reweightMax5.pth
+```
+
+```bash
+# Linux
+sha256sum assets/checkpoints/St4RTrack_Seqmode_reweightMax5.pth
+```
+
+Docker는 이 경로를 읽기 전용으로 연결합니다. 파일 준비가 끝나면 [Docker 빌드와 스모크 안내](docker/README.md#빌드와-스모크)를 따릅니다. ADT·PStudio는 사용자가 받은 공식 NPZ를 같은 형식으로 추가하면 runner에서 사용할 수 있습니다.
+
+## Python 환경 설치
+
+Docker 대신 호스트에서 모델을 실행하려면 전체 Python 의존성을 설치합니다. 아래 명령은 환경 구성과 데이터·모델 다운로드를 함께 수행하며, CUDA를 사용할 수 있으면 환경 검증 중 작은 GPU 연산도 수행합니다.
+
+```powershell
+# Windows, 프로젝트 루트에서
+.\scripts\bootstrap.ps1 -DownloadAssets
+```
+
+```bash
+# Linux, 프로젝트 루트에서
+bash scripts/bootstrap.sh --download-assets
+```
 
 현재 GPU RTX 5080에서는 Python 3.12 / PyTorch 2.7.1 / CUDA 12.8을 사용합니다. 저자의 PyTorch 2.5.1 / CUDA 12.1 환경과 다르므로 동일 환경 재현으로 표현하지 않습니다. 지원되는 이전 세대 GPU의 Linux에서는 `TORCH_PLATFORM=cu121 bash scripts/bootstrap.sh --download-assets`로 저자 버전을 설치할 수 있습니다. 새 머신에 복사할 때는 `.venv`를 복사하지 않고 해당 OS에서 bootstrap을 실행합니다.
 

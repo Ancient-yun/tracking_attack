@@ -349,6 +349,8 @@ Artifact 감사는 독립 NumPy 수식, 저장 배열, GT/mask, epsilon, hash, �
 
 ### 데이터와 모델 준비
 
+공식 데이터셋·체크포인트 링크, Windows/Linux 다운로드 전용 명령, 가중치만/데이터만 받는 옵션, 저장 경로와 SHA-256 확인 방법은 [README의 데이터와 모델 가중치 다운로드](../README.md#데이터와-모델-가중치-다운로드)에 있다. Docker만 사용할 경우 이 다운로드 전용 절차를 쓰면 호스트에 PyTorch를 설치할 필요가 없다.
+
 기존 asset을 복사하면 hash를 확인한다. 새로 받을 때는 호스트 Python 환경을 준비해 다운로드 스크립트를 사용한다.
 
 ```powershell

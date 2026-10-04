@@ -4,6 +4,8 @@
 
 ## 빌드와 스모크
 
+빌드 전에 [README의 데이터와 모델 가중치 다운로드](../README.md#데이터와-모델-가중치-다운로드)를 따라 PO/DR NPZ와 `St4RTrack_Seqmode_reweightMax5.pth`를 준비합니다. Windows·Linux 다운로드 명령, 공식 링크, 저장 경로와 SHA-256 확인 방법이 있습니다. Docker용 다운로드만 할 때는 호스트의 PyTorch나 GPU가 필요하지 않습니다.
+
 현재 Windows의 Docker Desktop Linux engine과 NVIDIA GPU 연결을 사용합니다. 이미지에는 Python 3.12.15와 PyTorch 2.7.1 / torchvision 0.22.1의 CUDA 12.8 wheel을 설치합니다. CUDA runtime 라이브러리는 wheel에 포함된 NVIDIA 패키지로 설치되며 호스트 driver는 Docker GPU 연결을 통해 사용합니다. [공식 PyTorch 설치 조합](https://pytorch.org/get-started/previous-versions/)과 [Docker GPU 설정](https://docs.docker.com/compose/how-tos/gpu-support/)을 따릅니다.
 
 ~~~powershell
