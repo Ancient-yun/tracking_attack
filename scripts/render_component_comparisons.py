@@ -199,9 +199,13 @@ def history_plot(condition, path, identity):
     axes[0, 0].scatter([selected_x], [best["loss"]], marker="*", s=170, color="#c54832", label=f"saved r={selected['restart']}, step={selected['step']}")
     axes[0, 0].set(xlabel="PGD update index (0=random initial state)", ylabel="This objective's loss (own units)", title="Saved state maximizes attack objective, including clean")
     axes[0, 0].legend(fontsize=8)
-    axes[0, 1].plot(steps, [row["delta_linf"] for row in iterations], label="L-infinity")
-    axes[0, 1].axhline(4 / 255, color="#777777", linestyle="--", label="4/255 bound")
-    axes[0, 1].set(xlabel="PGD update index", ylabel="RGB change [0,1] units", title="Perturbation budget")
+    budget_values_255 = np.asarray([row["delta_linf"] for row in iterations], float) * 255
+    epsilon_255 = float(record["epsilon_255"])
+    axes[0, 1].plot(steps, budget_values_255, label="Saved L-infinity x255")
+    axes[0, 1].axhline(epsilon_255, color="#777777", linestyle="--", label=f"epsilon = {epsilon_255:g} ({epsilon_255:g}/255 RGB)")
+    axes[0, 1].set(xlabel="PGD update index", ylabel="RGB change x255", ylim=(0, 1.08 * max(epsilon_255, float(budget_values_255.max()))),
+                   title="Perturbation budget\nSaved float norms; validation atol=1e-7 in [0,1] RGB")
+    axes[0, 1].ticklabel_format(axis="y", style="plain", useOffset=False)
     axes[0, 1].legend(fontsize=8)
     gradients = [row for row in iterations if "gradient_l2_per_frame" in row]
     require(len(gradients) == 20, "Expected 20 gradient measurements; final step is forward only")
@@ -392,7 +396,7 @@ def shared_figures(context, dataset, sequence, checks, root, preview_frames, fon
             image = axes[2, column].imshow(np.ma.masked_where(~source["dense_valid"][frame_index], error), cmap=cmap, vmin=0, vmax=checks["vmax_m"])
         for axis in axes.flat:
             axis.set_axis_off()
-        figure.colorbar(image, ax=list(axes[2]), label="Reconstruction error (m), shared clean+all5 scale", shrink=.7)
+        figure.colorbar(image, ax=list(axes[2]), label="Error (m), shared scale", shrink=.7)
         figure.suptitle(f"{dataset}/{sequence} | same source frame {frame_index} | same GT camera and displayed query IDs\nRows: saved RGB / GT-camera tracking projection / fixed-mask reconstruction error", fontsize=11)
         path = root / "geometry_cases" / dataset / sequence / f"geometry_attack_triptych_frame_{frame_index:03d}.png"
         save_figure(figure, path)
