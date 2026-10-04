@@ -6,6 +6,8 @@
 
 기본 계획은 **Point Odyssey 4클립 + Dynamic Replica 4클립, 각 원본 128프레임 전체, 다섯 목적함수별 PGD-20**입니다. 현재 설정과 전체 재현 절차는 [실험 재현 안내](docs/EXPERIMENT_REPRODUCTION.md), 손실 수식은 [loss 구조 설명](docs/loss_structure.md), Docker 명령은 [Docker 실행 안내](docker/README.md)를 참고하세요. 아래 16/64프레임 결과와 설정은 이전 검증 기록입니다.
 
+실험 완료 후 사용할 결과 파일, 성능 하락 계산식, 재사용할 시각화 코드와 수정 사항, HTML 구성·명령·검증 기준은 [HTML 결과 보고서 제작 안내](docs/HTML_REPORT_GUIDE.md)에 상세히 정리했습니다. 현재 HTML 생성기와 component-study 정성 renderer는 신규 구현 항목이며, 안내서 작성이 전체 실험이나 최종 HTML의 완료를 뜻하지 않습니다.
+
 ```powershell
 git clone https://github.com/Ancient-yun/tracking_attack.git
 cd tracking_attack
