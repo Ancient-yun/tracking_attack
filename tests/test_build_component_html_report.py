@@ -104,6 +104,7 @@ def make_builder_fixture(root):
             record.update(signature=metadata["signature"], synthetic_only=True,
                           condition_wall_seconds=1. if objective == "clean" else 21.,
                           perturbation_norms={"linf": 0. if objective == "clean" else 4 / 255})
+            record["tracking_metrics"]["num_queries"] = 2
             for name in ARRAY_NAMES:
                 path = condition / name
                 path.write_bytes(f"SYNTHETIC ARRAY UNIT STUB {dataset}/{sequence}/{objective}/{name}\n".encode())
@@ -126,6 +127,13 @@ def make_builder_fixture(root):
     }
     write(root / "analysis/study_analysis.json", analysis)
     freshen(root)
+    configuration = root / "configs/loss_components_8clips_allframes.json"
+    dataset_manifest = root / "docker/manifests/loss_components_8clips_allframes.json"
+    write(configuration, metadata["config"])
+    write(dataset_manifest, metadata["manifest"])
+    write(root / "launch.json", {"synthetic_only": True, "RunName": root.name, "Clips": 8,
+        "ExpectedConditions": 48, "FramesPerClip": 128, "AllFrames": True,
+        "ConfigSHA256": digest(configuration), "ManifestSHA256": digest(dataset_manifest)})
     for filename in BUILDER.ORIGINAL_PLOTS:
         _png(root / "analysis" / filename, "Stub original plot: " + filename)
     write(root / "postprocessing_revision.json", {"synthetic_only": True,
@@ -134,6 +142,7 @@ def make_builder_fixture(root):
     study = BUILDER.load_verified_study(root)
     manifest = {"schema_version": 1, "synthetic_only": True, "status": "complete", "errors": [],
                 "cpu_only": True, "new_model_inference": False, "run_id": root.name,
+                "project_root": str(root),
                 "run_signature": metadata["signature"], "scope": analysis["scope"], "frame_count": 128,
                 "analysis_json_sha256": study["analysis_sha256"],
                 "artifact_validation_sha256": digest(root / "artifact_validation.json"),
@@ -149,6 +158,10 @@ def make_builder_fixture(root):
                    for metric in ("apd3d", "epe_m")}} for o in ("clean", *BUILDER.OBJECTIVES)}}
         for objective in BUILDER.OBJECTIVES:
             directory = assets / "comparisons" / objective / dataset / sequence
+            clean_epe = study["records"][(dataset, sequence, "clean")]["tracking_metrics"]["epe_all_m"]
+            attack_epe = study["records"][(dataset, sequence, objective)]["tracking_metrics"]["epe_all_m"]
+            clean_temporal, attack_temporal = [clean_epe] * 128, [attack_epe] * 128
+            norm_factor = 1 + .1 * (1 + BUILDER.OBJECTIVES.index(objective))
             items = []
             for frame in FRAMES:
                 for prefix in ("rgb", "tracking", "reconstruction"):
@@ -172,6 +185,11 @@ def make_builder_fixture(root):
                 "preview_fps": 10., "selected_state": study["records"][(dataset, sequence, objective)]["selected_state"],
                 "selection": deepcopy(selection), "projection_checks": {"passed": True, "synthetic_only": True},
                 "reconstruction_checks": deepcopy(reconstruction_checks),
+                "clean_epe_per_frame_m": clean_temporal, "attack_epe_per_frame_m": attack_temporal,
+                "tracking_timeline_summary": BUILDER.summarize_tracking_timeline(
+                    clean_temporal, attack_temporal, clean_epe, attack_epe, 2),
+                "normalization_summary": BUILDER.summarize_normalization(
+                    [2.] * 128, [2. * norm_factor] * 128, [3.] * 128),
                 "sources": {"sequence": _sequence_sources(root, metadata, dataset, sequence), "conditions": {
                     "clean": _condition_sources(root, dataset, sequence, "clean"),
                     "attack": _condition_sources(root, dataset, sequence, objective)}}, "assets": items})
@@ -222,6 +240,15 @@ def test_full_builder_integration_keeps_input_proofs_and_publishes_bound_outputs
     assert manifest["outputs"]["index.html"]["bytes"] == index.stat().st_size
     assert manifest["visualization_source_proofs"]["clips"][0]["synthetic_only"] is True
     assert manifest.get("synthetic_only") is True and report.get("synthetic_only") is True
+    assert len(report["interpretation"]["cases"]) == 40
+    assert len(report["interpretation"]["timeline_by_clip"]) == 8
+    assert report["interpretation"]["input_budget"]["within_budget"] == 40
+    assert report["source_configuration"]["launch_json_sha256"] == digest(builder_run / "launch.json")
+    assert manifest["source_configuration"] == report["source_configuration"]
+    assert report["cpu_postprocessing"]["status"] == "snapshot_before_browser_qa"
+    assert "data/postprocessing_execution.json" in manifest["outputs"]
+    assert manifest["builder_seconds"] >= 0
+    assert "postprocess_seconds" not in manifest
     for relative, proof in manifest["outputs"].items():
         assert digest(output / relative) == proof["sha256"]
     embedded = re.search(r'<script type="application/json" id="report-payload">(.*?)</script>',
@@ -320,3 +347,95 @@ def test_clean_baseline_and_recorded_failure_count_are_preserved(builder_run):
     assert rows[0]["clean_diagnostics"] == study["records"][("po_mini", "clip_0", "clean")]["loss_terms"]["diagnostics"]
     assert study["analysis"]["validation"]["recorded_failed_attempts"] == 2
     assert study["analysis"]["status"] == "complete_with_recorded_failures"
+
+
+@pytest.mark.parametrize("relative", ["configs/loss_components_8clips_allframes.json",
+                                    "docker/manifests/loss_components_8clips_allframes.json"])
+def test_literal_launch_file_hash_rejects_even_semantically_equal_json(builder_run, relative):
+    path = builder_run / relative
+    path.write_bytes(path.read_bytes() + b"\n")
+    with pytest.raises(BUILDER.ReportValidationError, match="Original launch source file SHA differs"):
+        BUILDER.source_configuration_evidence(BUILDER.load_verified_study(builder_run), builder_run)
+
+
+def test_original_launch_scope_cannot_claim_64_source_frames(builder_run):
+    launch = read(builder_run / "launch.json")
+    launch["FramesPerClip"] = 64
+    write(builder_run / "launch.json", launch)
+    with pytest.raises(BUILDER.ReportValidationError, match="Original launch scope differs"):
+        BUILDER.source_configuration_evidence(BUILDER.load_verified_study(builder_run), builder_run)
+
+
+def test_launch_hash_alone_cannot_substitute_a_different_signed_configuration(builder_run):
+    path = builder_run / "configs/loss_components_8clips_allframes.json"
+    configuration = read(path)
+    configuration["unrelated_configuration"] = True
+    write(path, configuration)
+    launch = read(builder_run / "launch.json")
+    launch["ConfigSHA256"] = digest(path)
+    write(builder_run / "launch.json", launch)
+    with pytest.raises(BUILDER.ReportValidationError, match="source content differs from signed run"):
+        BUILDER.source_configuration_evidence(BUILDER.load_verified_study(builder_run), builder_run)
+
+
+@pytest.mark.parametrize("mutation", ["short_norm", "wrong_norm_summary", "wrong_epe_summary", "wrong_queries"])
+def test_visual_scalar_diagnostics_are_recomputed_from_all_128_values(builder_run, mutation):
+    path = builder_run / "fixture_assets/visualization_manifest.json"
+    manifest = read(path)
+    clip = manifest["clips"][0]
+    if mutation == "short_norm":
+        clip["normalization_summary"]["per_frame"]["clean"] = [2.] * 64
+    elif mutation == "wrong_norm_summary":
+        clip["normalization_summary"]["clean"]["mean"] += 1
+    elif mutation == "wrong_epe_summary":
+        clip["tracking_timeline_summary"]["increased_frames"] = 64
+    else:
+        clip["tracking_timeline_summary"]["query_count"] = 1
+    write(path, manifest)
+    with pytest.raises(BUILDER.ReportValidationError, match="(?i)normalization|temporal|quer"):
+        BUILDER.validate_visualizations(path.parent, BUILDER.load_verified_study(builder_run))
+
+
+def test_same_clip_clean_normalization_cannot_change_between_attack_objectives(builder_run):
+    path = builder_run / "fixture_assets/visualization_manifest.json"
+    manifest = read(path)
+    clip = manifest["clips"][1]
+    clip["normalization_summary"] = BUILDER.summarize_normalization([4.] * 128, [3.] * 128, [3.] * 128)
+    write(path, manifest)
+    with pytest.raises(BUILDER.ReportValidationError, match="baseline|Baseline"):
+        BUILDER.validate_visualizations(path.parent, BUILDER.load_verified_study(builder_run))
+
+
+def test_cpu_time_snapshot_excludes_running_future_and_other_attempt_stages(builder_run):
+    from datetime import datetime, timezone
+    output = builder_run / "html_staging"
+    state = {"attempt_id": "synthetic-timing", "staging_dir": str(output), "stages": [
+        {"stage": "render:tracking_mse", "status": "complete", "elapsed_seconds": 2., "cpu_only": True},
+        {"stage": "build_html", "status": "running", "elapsed_seconds": 999., "cpu_only": True}]}
+    write(builder_run / "html_postprocessing.json", state)
+    now = datetime.now(timezone.utc)
+    snapshot = BUILDER.cpu_timing_snapshot(builder_run, output, now)
+    assert len(snapshot["stages"]) == 1 and snapshot["stages"][0]["elapsed_seconds"] == 2.
+    assert snapshot["not_gpu_experiment_time"] is True
+    assert snapshot["status"] == "snapshot_before_browser_qa"
+    assert snapshot["builder_elapsed_until_html_content_snapshot_seconds"] >= 0
+    unrelated = BUILDER.cpu_timing_snapshot(builder_run, builder_run / "another_attempt", now)
+    assert unrelated["stages"] == [] and unrelated["attempt_id"] is None
+
+
+@pytest.mark.parametrize("invalid", ["negative", "boolean", "non_cpu", "wrong_stage"])
+def test_cpu_time_snapshot_refuses_invalid_duration_or_stage_evidence(builder_run, invalid):
+    from datetime import datetime, timezone
+    output = builder_run / "html_staging"
+    stage = {"stage": "render:tracking_mse", "status": "complete", "elapsed_seconds": 1., "cpu_only": True}
+    if invalid == "negative":
+        stage["elapsed_seconds"] = -1.
+    elif invalid == "boolean":
+        stage["elapsed_seconds"] = True
+    elif invalid == "non_cpu":
+        stage["cpu_only"] = False
+    else:
+        stage["stage"] = "browser_qa"
+    write(builder_run / "html_postprocessing.json", {"staging_dir": str(output), "stages": [stage]})
+    with pytest.raises(BUILDER.ReportValidationError, match="CPU timing snapshot"):
+        BUILDER.cpu_timing_snapshot(builder_run, output, datetime.now(timezone.utc))

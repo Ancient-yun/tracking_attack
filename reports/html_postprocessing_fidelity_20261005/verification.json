@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "recorded_at_utc": "2026-10-04T16:18:25.141384+00:00",
+  "kind": "postprocessing_fidelity_preparation_and_synthetic_smoke",
+  "actual_campaign_completed": false,
+  "actual_campaign_html_created": false,
+  "actual_campaign_outputs_rendered": false,
+  "numerical_source14_unchanged": true,
+  "cpu_tests": {
+    "passed": 188,
+    "skipped": 1,
+    "groups": {
+      "report_data": 43,
+      "component_visualization": 29,
+      "interpretation": 34,
+      "html_builder": 38,
+      "postprocessing_pipeline": 44
+    },
+    "elapsed_seconds": 169.72,
+    "skip_reason": "Windows symlink creation permission unavailable",
+    "command": "C:/code/st4rtrack_pgd/.venv/Scripts/python.exe -m pytest tests/test_component_report_data.py tests/test_component_visualization.py tests/test_component_report_interpretation.py tests/test_build_component_html_report.py tests/test_component_report_pipeline.py -q"
+  },
+  "browser_qa": {
+    "synthetic_only": true,
+    "status": "passed",
+    "evidence": "synthetic_browser_qa.json",
+    "sha256": "ba41213c2fac418772e848fe31a67e2a940297ab8fe54fd2138fd94670b70cff",
+    "index_sha256": "d8f9eec6ad6b03841cc1dded16f99d3bf7a9fc3406f59e7f7de405563ecc291a",
+    "report_data_sha256": "68ca2318a476ff0bdfe2d3932ee4622ef3e0ba022c245afa0c41113a458dc80d",
+    "outputs_verified": 580,
+    "original_checks": 14,
+    "portable_checks": 14,
+    "external_network_requests": 0,
+    "javascript_errors": 0,
+    "actual_video_playback": true,
+    "portable_copy_verified": true
+  },
+  "requirements_pasted_snapshot_sha256": "3de37d419b38243c4370d711fad8c4d1366692575a32402ce2af732702790705",
+  "current_guide_sha256": "958e57dbdc1d38218572e5ade8b42b9dadc0d3e341ab89fb9b9ce3b2eaec7eed",
+  "installed_source_sha256": {
+    "scripts/component_report_data.py": "ab1bdff8220cb22b2adb75a1ba3924e5eb21553858fae2727aaa517f49daa31a",
+    "scripts/component_projection.py": "cd6187d010fbaf7258f2652a5d3c913659c3d78710bb846aaebe059817fe0da6",
+    "scripts/component_report_interpretation.py": "058af70a220c83f06a422b54aff8f2c758da2497af414c552b9dba50d04a1243",
+    "scripts/render_component_comparisons.py": "e52ff783ce48d45506486a9b39aeb8f2ae489cff51ca5ddb0272f9daf1c9b2f3",
+    "scripts/build_component_html_report.py": "3b1fe6d1d0b697aff8d3dd436ff33e7413e65d2a64f0e5e202111714567aba69",
+    "scripts/verify_component_html_report.cjs": "09dab9eb7077606029f613a2a10d4f8b3535e6b99c7d268c42c84c4d3918860d",
+    "scripts/run_component_report_pipeline.py": "ffb90499c218bea9a74777db2c0baa1fcc108475c335a072cbe578cf4f2f5377",
+    "templates/component_report.html": "72c0a4010f20ccf58f4cf9e780d986b391fd88621cf1543031f6e656c61b072f",
+    "tests/test_component_report_data.py": "449f9138726787256e472cebb1584523e1ec80efbc613a5ff494903af3d122e7",
+    "tests/test_component_visualization.py": "7afb60e604da65d4adec3df3e24a5329972e9348a47d59b3dad11358bb960249",
+    "tests/test_component_report_interpretation.py": "3feb4abd57efcddc0487707f480e439f931124cf9d412d7bd62c051e18df39cb",
+    "tests/test_build_component_html_report.py": "71684de6ae6bd10be93cb7971e3875c77c400f5c80c9cf7a7ed24deef6c45163",
+    "tests/test_component_report_pipeline.py": "0c13aa08a76e9c6609a80f1653ec15e15003c3815a182982f00859b651c0424a",
+    "docs/HTML_REPORT_GUIDE.md": "958e57dbdc1d38218572e5ade8b42b9dadc0d3e341ab89fb9b9ce3b2eaec7eed",
+    "docs/HTML_REPORT_PIPELINE.md": "ded8707291e71bbf02285869256e98ac83c4d1e627bb933a30b22920f4581b1b"
+  },
+  "config_sha256": "02d775afd6e6f94cc54a067aebf75206f754380bb6ddf8fd91305e338ec3aa6c",
+  "manifest_sha256": "3dfa82fa87cfaa715aa8a86207eabb0e8013f4780d223ed66a61d025ef126577",
+  "publication": "Code, documentation, tests and synthetic QA proof only; actual arrays and videos remain local."
+}

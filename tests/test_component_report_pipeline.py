@@ -41,9 +41,11 @@ def inspector(status="exited", code=0, oom=False, running=False, identity=CONTAI
 def fake_bundle(directory, study, *, passed=False, synthetic=False):
     """Simulated builder/QA byte contract, explicitly tagged as a test stub."""
     directory.mkdir(parents=True, exist_ok=True)
-    (directory / "index.html").write_text("<!doctype html><html lang=ko>synthetic fixture</html>", encoding="utf-8")
+    (directory / "index.html").write_text('<!doctype html><html lang=ko>synthetic fixture<a href="data/postprocessing_execution.json">CPU time</a></html>', encoding="utf-8")
     write(directory / "data/report_data.json", {"fixture_only": True})
     write(directory / "assets/visualization_manifest.json", {"fixture_only": True})
+    if not (directory / PIPE.CPU_EXECUTION_FILE).is_file():
+        write(directory / PIPE.CPU_EXECUTION_FILE, {"fixture_only": True, "status": "builder_snapshot_before_qa"})
     manifest = {"fixture_only": True, "status": "complete" if passed else "built_pending_browser_qa",
                 "run_id": Path(study["run_dir"]).name, "run_signature": study["metadata"]["signature"],
                 "scope": study["analysis"]["scope"], "analysis_json_sha256": study["analysis_sha256"],
@@ -64,6 +66,23 @@ def fake_bundle(directory, study, *, passed=False, synthetic=False):
     write(directory / "report_manifest.json", manifest)
 
 
+def completed_state(study):
+    """Invented durations for metadata contract tests, never measured runtimes."""
+    labels = ["render:" + objective for objective in PIPE.OBJECTIVES] + ["build", "browser_qa"]
+    stages = [{"stage": label, "status": "complete", "returncode": 0, "elapsed_seconds": float(index + 1),
+               "cpu_only": True, "new_model_inference": False, "cuda_visible_devices": "",
+               "started_at_utc": "2026-01-01T00:00:00+00:00", "completed_at_utc": "2026-01-01T00:00:07+00:00",
+               "argv": ["synthetic-only-stub"], "log": "synthetic-never-executed.log"}
+              for index, label in enumerate(labels)]
+    return {"fixture_only": True, "attempt_id": "synthetic-time-contract", "started_at_utc": "2026-01-01T00:00:00+00:00",
+            "readiness": {"fixture_only": True, "run_signature": study["metadata"]["signature"]},
+            "source_code_sha256": {}, "stages": stages}
+
+
+def bundle_bytes(root):
+    return {p.relative_to(root).as_posix(): p.read_bytes() for p in root.rglob("*") if p.is_file()}
+
+
 @pytest.fixture
 def run(tmp_path):
     return FIXTURES.make_fixture(tmp_path / "synthetic_scalar_campaign")
@@ -74,12 +93,17 @@ def environment(tmp_path, monkeypatch):
     # All child source/runtime paths are local non-executable fixture files.
     scripts = tmp_path / "synthetic_code/scripts"
     templates = scripts.parent / "templates"
+    docs = scripts.parent / "docs"
     scripts.mkdir(parents=True)
     templates.mkdir()
+    docs.mkdir()
     for filename in ("run_component_report_pipeline.py", "component_report_data.py", "component_projection.py",
-                     "render_component_comparisons.py", "build_component_html_report.py", "verify_component_html_report.cjs"):
+                     "component_report_interpretation.py", "render_component_comparisons.py", "build_component_html_report.py",
+                     "render_pgd_comparisons.py", "render_tracking_comparisons.py", "tracking_projection.py",
+                     "render_official_visualizations.py", "verify_component_html_report.cjs"):
         (scripts / filename).write_text("synthetic child source, never executed", encoding="utf-8")
     (templates / "component_report.html").write_text("synthetic template", encoding="utf-8")
+    (docs / "HTML_REPORT_GUIDE.md").write_text("synthetic guide", encoding="utf-8")
     monkeypatch.setattr(PIPE, "__file__", str(scripts / "run_component_report_pipeline.py"))
     node, package, browser = tmp_path / "node", tmp_path / "playwright", tmp_path / "browser"
     node.write_text("fixture", encoding="utf-8")
@@ -182,6 +206,13 @@ def test_success_runs_sequential_cpu_stages_and_atomically_publishes(run, enviro
     assert all((run / s["log"]).is_file() and s["elapsed_seconds"] >= 0 for s in result["stages"])
     for name, content in originals.items():
         assert (run / name).read_bytes() == content
+    recorded = read(run / "html_report" / PIPE.CPU_EXECUTION_FILE)
+    manifest = read(run / "html_report/report_manifest.json")
+    assert recorded["status"] == "cpu_stages_complete" and recorded["snapshot_phase"] == "after_browser_qa_before_atomic_publication"
+    assert recorded["stages"] == result["stages"] and recorded["stage_elapsed_seconds_sum"] == sum(s["elapsed_seconds"] for s in result["stages"])
+    assert recorded["elapsed_until_publication_seconds"] >= recorded["stage_elapsed_seconds_sum"]
+    assert recorded["elapsed_until_publication_seconds"] <= result["elapsed_seconds"]
+    assert manifest["cpu_postprocessing_evidence"]["only_updated_output"] == PIPE.CPU_EXECUTION_FILE
 
 
 @pytest.mark.parametrize("failed", ["render:reconstruction_3d", "build", "browser_qa"])
@@ -207,6 +238,7 @@ def test_synthetic_browser_proof_cannot_publish_official_report(run, environment
 def test_complete_existing_report_is_verified_and_reused_without_rerender(run, monkeypatch):
     study = PIPE.load_verified_study(run)
     fake_bundle(run / "html_report", study, passed=True)
+    PIPE.finalize_cpu_postprocessing_evidence(run / "html_report", study, completed_state(study), 35.)
     before = {p.relative_to(run / "html_report").as_posix(): PIPE.sha_file(p) for p in (run / "html_report").rglob("*") if p.is_file()}
     def only_inspection(argv, **kwargs):
         assert argv[1] == "inspect"
@@ -276,3 +308,131 @@ def test_missing_runtime_records_failure_without_starting_children(run, environm
     result = PIPE.run_pipeline(run, run.parent, CONTAINER_ID)
     assert result["status"] == "failed" and "Node executable" in result["error"]
     assert result["stages"] == [] and not (run / "html_report").exists()
+
+
+def test_cpu_metadata_update_changes_only_the_registered_time_file_and_manifest(run, tmp_path):
+    study = PIPE.load_verified_study(run)
+    directory = tmp_path / "synthetic_metadata_bundle"
+    fake_bundle(directory, study, passed=True)
+    before = bundle_bytes(directory)
+    before_manifest = read(directory / "report_manifest.json")
+    original_inputs = bundle_bytes(run)
+    clock_reads = []
+    def final_clock():
+        clock_reads.append(bundle_bytes(directory))
+        return 35.
+    proof = PIPE.finalize_cpu_postprocessing_evidence(directory, study, completed_state(study), final_clock)
+    after = bundle_bytes(directory)
+    assert set(before) == set(after)
+    assert clock_reads == [before]  # Clock is sampled after QA checks but before the metadata write.
+    assert {name for name in before if before[name] != after[name]} == {PIPE.CPU_EXECUTION_FILE, "report_manifest.json"}
+    assert bundle_bytes(run) == original_inputs
+    manifest = read(directory / "report_manifest.json")
+    assert {k: v for k, v in before_manifest.items() if k != "outputs"} == {k: v for k, v in manifest.items() if k not in ("outputs", "cpu_postprocessing_evidence")}
+    assert {k: v for k, v in before_manifest["outputs"].items() if k != PIPE.CPU_EXECUTION_FILE} == {k: v for k, v in manifest["outputs"].items() if k != PIPE.CPU_EXECUTION_FILE}
+    timing = read(directory / PIPE.CPU_EXECUTION_FILE)
+    assert timing["stage_elapsed_seconds_sum"] == 28. and timing["elapsed_until_publication_seconds"] == 35.
+    assert timing["pre_browser_qa_snapshot_sha256"] == before_manifest["outputs"][PIPE.CPU_EXECUTION_FILE]["sha256"]
+    assert timing["scope"] == PIPE.CPU_TIMING_SCOPE
+    assert "previous independent artifact audit and analysis" in timing["scope"]["excluded"]
+    assert "do not add" in timing["scope"]["stage_elapsed_seconds_sum"]
+    assert timing["unchanged_output_sha256"]["qa/browser_qa.json"] == proof["qa_proof_sha256"]
+    assert timing["browser_qa_bindings"]["index_sha256"] == proof["index_sha256"]
+
+
+@pytest.mark.parametrize("missing", ["registered_output", "html_link"])
+def test_time_update_requires_the_linked_preexisting_browser_checked_snapshot(run, tmp_path, missing):
+    study = PIPE.load_verified_study(run)
+    directory = tmp_path / "synthetic_missing_snapshot"
+    fake_bundle(directory, study, passed=True)
+    if missing == "registered_output":
+        (directory / PIPE.CPU_EXECUTION_FILE).unlink()
+        manifest = read(directory / "report_manifest.json")
+        manifest["outputs"].pop(PIPE.CPU_EXECUTION_FILE)
+        write(directory / "report_manifest.json", manifest)
+    else:
+        (directory / "index.html").write_text("synthetic HTML without a timing link", encoding="utf-8")
+        qa = read(directory / "qa/browser_qa.json")
+        qa["index_sha256"] = PIPE.sha_file(directory / "index.html")
+        write(directory / "qa/browser_qa.json", qa)
+        manifest = read(directory / "report_manifest.json")
+        manifest["browser_qa"].update(index_sha256=qa["index_sha256"], sha256=PIPE.sha_file(directory / "qa/browser_qa.json"))
+        for name in ("index.html", "qa/browser_qa.json"):
+            manifest["outputs"][name] = {"sha256": PIPE.sha_file(directory / name), "bytes": (directory / name).stat().st_size}
+        write(directory / "report_manifest.json", manifest)
+    before = bundle_bytes(directory)
+    with pytest.raises(PIPE.PipelineError, match="snapshot|already link"):
+        PIPE.finalize_cpu_postprocessing_evidence(directory, study, completed_state(study), 35.)
+    assert bundle_bytes(directory) == before
+
+
+@pytest.mark.parametrize("invalid", ["missing_stage", "extra_stage", "failed", "negative", "nonfinite", "cuda", "naive_time", "backward_time", "short_wall"])
+def test_invalid_stage_measurements_fail_before_the_qa_checked_bundle_changes(run, tmp_path, invalid):
+    study = PIPE.load_verified_study(run)
+    directory = tmp_path / "synthetic_invalid_times"
+    fake_bundle(directory, study, passed=True)
+    state, elapsed = completed_state(study), 35.
+    if invalid == "missing_stage":
+        state["stages"].pop(0)
+    elif invalid == "extra_stage":
+        state["stages"].append(None)
+    elif invalid == "failed":
+        state["stages"][-1]["returncode"] = 1
+    elif invalid == "negative":
+        state["stages"][0]["elapsed_seconds"] = -1.
+    elif invalid == "nonfinite":
+        state["stages"][0]["elapsed_seconds"] = float("inf")
+    elif invalid == "cuda":
+        state["stages"][0]["cuda_visible_devices"] = "0"
+    elif invalid == "naive_time":
+        state["stages"][0]["started_at_utc"] = "2026-01-01T00:00:00"
+    elif invalid == "backward_time":
+        state["stages"][0]["completed_at_utc"] = "2025-01-01T00:00:00+00:00"
+    else:
+        elapsed = 27.
+    before = bundle_bytes(directory)
+    with pytest.raises(PIPE.PipelineError, match="timing|completion|elapsed"):
+        PIPE.finalize_cpu_postprocessing_evidence(directory, study, state, elapsed)
+    assert bundle_bytes(directory) == before
+
+
+@pytest.mark.parametrize("filename", ["index.html", "data/report_data.json", "qa/browser_qa.json"])
+def test_core_byte_change_during_metadata_update_blocks_atomic_publication_and_preserves_stage(run, environment, monkeypatch, filename):
+    fake_executor(run, monkeypatch)
+    original_write = PIPE.write_json
+    changed = []
+    def write_and_tamper(path, value):
+        original_write(path, value)
+        if Path(path).as_posix().endswith(PIPE.CPU_EXECUTION_FILE):
+            stage = Path(path).parents[1]
+            target = stage / filename
+            target.write_bytes(target.read_bytes() + b"\nsynthetic-tampering-stub")
+            changed.append(target)
+    monkeypatch.setattr(PIPE, "write_json", write_and_tamper)
+    original_inputs = {name: (run / name).read_bytes() for name in ("run.json", "campaign_execution.json", "resume_execution.json", "artifact_validation.json")}
+    result = PIPE.run_pipeline(run, run.parent, CONTAINER_ID)
+    assert changed and result["status"] == "failed" and "output bytes changed" in result["error"]
+    assert result["staging_preserved"] and Path(result["staging_dir"]).is_dir() and not (run / "html_report").exists()
+    assert all((run / name).read_bytes() == value for name, value in original_inputs.items())
+
+
+@pytest.mark.parametrize("relative", ["component_report_interpretation.py", "render_pgd_comparisons.py", "render_tracking_comparisons.py",
+                                     "tracking_projection.py", "render_official_visualizations.py", "../docs/HTML_REPORT_GUIDE.md"])
+def test_all_scientific_render_helpers_interpretation_and_guide_are_frozen(run, environment, monkeypatch, relative):
+    fake_executor(run, monkeypatch, mutate_source=(environment / relative).resolve())
+    result = PIPE.run_pipeline(run, run.parent, CONTAINER_ID)
+    assert result["status"] == "failed" and "source changed" in result["error"]
+    assert result["staging_preserved"] and not (run / "html_report").exists()
+
+
+@pytest.mark.parametrize("changed", ["snapshot_phase", "elapsed_until_publication_seconds", "scope"])
+def test_reuse_rejects_manifest_timing_scope_that_does_not_match_its_bound_metadata(run, tmp_path, changed):
+    study = PIPE.load_verified_study(run)
+    directory = tmp_path / "synthetic_scope_tampering"
+    fake_bundle(directory, study, passed=True)
+    PIPE.finalize_cpu_postprocessing_evidence(directory, study, completed_state(study), 35.)
+    manifest = read(directory / "report_manifest.json")
+    manifest["cpu_postprocessing_evidence"][changed] = "invented scope cannot be accepted"
+    write(directory / "report_manifest.json", manifest)
+    with pytest.raises(PIPE.PipelineError, match="metadata update|scopes"):
+        PIPE.verify_complete_report(directory, study, require_cpu_evidence=True)

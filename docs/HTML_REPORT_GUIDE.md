@@ -483,6 +483,19 @@ D는 두 공격 사이의 상대 차이다. 각 공격이 clean보다 실제로 
 
 이는 **연결된 모델에서 목적별 공격에 따른 손상 양상**을 설명한다. 공유 입력·표현·정규화가 함께 작용하므로 특정 연결이나 normalization 하나의 독립 인과 효과를 분리해 입증했다고 쓰지 않는다. 목적별 최적화 난도·raw 단위·선택 iterate도 다르므로 최고 `attack_loss`끼리 공격 강도를 비교하지 않는다. 저장 결과는 해당 목적값을 최대화한 상태이며 최저 APD나 최고 benchmark EPE를 직접 선택한 상태가 아니다.
 
+#### 6.6.5 그림과 함께 쓰는 실제 수치 설명
+
+표·그림의 캡션만으로 끝내지 않는다. `scripts/component_report_interpretation.py::build_interpretation`은 검증된 scalar 분석과 renderer 진단 요약을 받아 다음 설명을 생성하고, `templates/component_report.html`은 전체/PO/DR와 선택 목적·클립에 맞춰 표시한다. 모델이나 원본 배열을 이 해석 모듈에서 다시 읽지 않는다.
+
+- 다섯 목적 각각의 tracking/reconstruction APD clean→attack, 감소 %p, 상대%, EPE clean→attack, 증가 m, 배수와 해당 CI를 실제 값으로 설명한다. PO/DR 차이는 관측된 양상으로 서술하고 dataset 사이의 새로운 유의성 검정을 했다고 쓰지 않는다.
+- 같은 클립의 `tracking_3d → reconstruction_3d` 이동은 두 상대 APD 손상의 끝점과 x/y 이동량을 제시한다. 기존 PGD 경로와 혼동하지 않으며 유효한 공통 클립만 사용한다.
+- 각 목적×네 손상 지표마다 악화/동일/개선 클립 수, 중앙값과 범위, 극단 클립 ID를 보여준다. 평균 하나가 모든 클립의 악화를 뜻하지 않도록 한다. 같은 클립의 다섯 공격을40개 독립 표본처럼 취급하지 않는다.
+- 두 기하 목적의 직접 paired 차이는 네 지표 모두의 실제 estimate/CI를 설명한다. CI가0을 포함하거나 두 공격 모두 개선되는 경우도 그대로 적는다.
+- Native L21·raw/effective confidence와 benchmark 변화의 부호가 다르면 그 불일치를 명시한다. 단위가 다른 raw loss 절댓값을 비교하여 목적의 우열을 정하지 않는다.
+- 전체40공격의 실제 최대 L∞, ε4/255 검증 여부와 clean/중간/마지막 selected state 수를 제시한다. 특정 목적의 최대 objective 상태를 저장한 것임을 설명한다.
+
+해석 결과는 `data/report_data.json.interpretation`에 남긴다. 전체128프레임의 EPE 진단과 normalization 통계는 renderer가 먼저 계산·검증하고, builder가 저장된128개 값으로 다시 확인한다. 같은 클립의 clean EPE·query 수·clean normalization·고정 GT normalization은 모든 공격에서 같아야 한다.
+
 ## 7. 새 renderer에서 만들 정성·진단 그림
 
 신규 파일명 제안: `scripts/render_component_comparisons.py`. 기존 renderer의 유효한 함수·투영 검사·그림 스타일을 재사용하되 이번 schema에 맞는 adapter를 둔다. 한 조건만 시험 렌더링한 뒤 전체 40쌍을 순회한다. 파일명에는 objective/dataset/sequence를 포함한다.
@@ -520,6 +533,8 @@ whole_clip_epe = error_m[valid].mean()
 
 `whole_clip_epe`를 저장 EPE와 `rtol=1e-6, atol=1e-6`로 확인한다. empty mask는 N/A다. Overlay가18개 점만 보여도 이 곡선은 전체 Q로 계산한다. 클립당 clean+5공격, x축0~127의 곡선을 만들고 상세 탭에서 목적별 비교가 가능하게 한다. Dynamic 곡선을 추가하면 별도의 `scale_dynamic`과 mask를 사용하고 all 곡선과 구분한다.
 
+이번 all 평가의 모든 Q×128 시점을 사용하여 증가/동일/감소 프레임 수와 고정 구간0~31,32~63,64~95,96~127의 clean/attack 평균 EPE 및 차이를 함께 설명한다. 후반 occlusion이나 투영 실패를 임의로 제거하지 않는다. 프레임 수는 시간적 일관성의 진단이며128개의 독립 통계 표본이라고 해석하지 않는다.
+
 ### 7.4 Reconstruction 오차 지도와 confidence
 
 신규 생성 항목이다. 공통 sequence의 `reconstruction_gt.npy`, `reconstruction_valid.npy`와 각 조건의 dense 예측을 읽는다.
@@ -547,6 +562,8 @@ error_m = np.linalg.norm(aligned - reconstruction_gt, axis=-1)
 - `components.npz.reconstruction_norm`의 clean/attack 값과 프레임별 attack/clean 비율, `targets.npz.reconstruction_gt_norm`을 비교한다.
 - `result.loss_terms.diagnostics`의 비가중 `tracking_l21`, `reconstruction_l21`, raw/effective tracking confidence와 reconstruction confidence를 함께 보여준다.
 - Native L21은 무차원이다. 현재 입력의 head2 normalization이 두 branch에 연결되므로 scale contraction이나 confidence 변화가 weighted loss를 크게 만들 수 있다. 이를 meter EPE 손상과 같은 크기로 해석하거나 독립 head 인과 효과로 단정하지 않는다.
+
+Normalization 자체의 단위도 구분한다. 예측 `reconstruction_norm`은 official alignment 이전 raw pointmap의 좌표 크기이며 benchmark meter 오차가 아니다. 고정 GT norm은 GT meter 좌표 크기다. 둘의 물리적 간격을 성능 손상으로 해석하지 않는다. Clean/attack 각각128프레임의 평균·중앙값·범위, `mean(attack)/mean(clean)`과 `mean(attack[t]/clean[t])`를 별도로 기록하고 분모≤1e-12인 프레임은 비율 N/A로 제외 수를 밝힌다. 비율과 native L21은 무차원이다.
 
 ### 7.6 공식 2D/3D 영상과 예시 선택
 
@@ -686,7 +703,7 @@ python scripts/audit_component_artifacts.py
 
 ### 10.2 신규 구현할 renderer 인터페이스
 
-**다음 명령은 아직 없다. `render_component_comparisons.py`를 구현하고 검증한 후에만 실행한다.**
+`render_component_comparisons.py`는 구현되어 있다. 실제 최종 출력은3절의 완료 gate를 통과한 뒤에만 만들며, 전체 순차 실행과 브라우저 QA는 [HTML 파이프라인 안내](HTML_REPORT_PIPELINE.md)의 명령을 우선 사용한다.
 
 ```powershell
 # 첫 PO의 첫 objective로 저장 결과만 읽는 CPU 렌더링 QA.
@@ -703,7 +720,7 @@ python scripts/audit_component_artifacts.py
 
 `--objective`는 다섯 ID를 허용하고 clean과 자동으로 짝지어야 한다. `--clip`은 선택적 필터이며 미지정 시8클립, `--preview-frames`는 스틸 전용, 영상은128프레임이다. 옵션 예: `--frames-only`는 MP4를 생략하는 QA 모드, `--official-3d`는 공식 부록 렌더링이다. 이 옵션 정의를 코드의 `--help`와 일치시킨다.
 
-QA 후 전체 목적을 처리한다. 아래 foreach 역시 신규 renderer 구현 후 사용한다.
+QA 후 전체 목적을 처리한다. 아래 foreach는 구현된 renderer를 직접 호출하는 방법이다.
 
 ```powershell
 $reportObjectives = @('tracking_mse', 'tracking_3d', 'reconstruction_3d', 'confidence', 'joint_training')
@@ -722,7 +739,7 @@ foreach ($reportObjective in $reportObjectives) {
 
 ### 10.3 신규 구현할 HTML builder 인터페이스
 
-**다음 명령도 `build_component_html_report.py` 신규 구현 후 사용한다.**
+`build_component_html_report.py`는 구현되어 있다. 아래 직접 호출은 HTML 생성까지이며, 브라우저 QA와 검증 후 최종 폴더를 게시하는 전체 파이프라인을 사용하는 것을 권장한다.
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\build_component_html_report.py `
@@ -760,6 +777,10 @@ NumPy/Matplotlib/Pillow와 ffmpeg/ffprobe가 필요하다. 공식 시각화는 m
 UTC를 KST로 변환한 시작/종료 시각과 pause/resume 이력을 함께 표시할 수 있다. 달력상의 경과 시간과 실제 계산 시간을 혼용하지 않는다. 과거 `6~7시간`이나 `5시간40분~6시간` 전망을 실측 최종 시간처럼 쓰지 않는다. Confidence 등 아직 미측정이었던 추정치를 최종 보고서의 actual 칸에 넣지 않는다.
 
 데이터 I/O만의 시간이 별도로 기록되지 않았으므로 loading 준비 시간을 순수 dataset 읽기 시간이라고 하지 않는다. `pre_attack_preparation_wall_seconds_sum`은 GT/model/parity/clean 저장 등도 포함한다. 분석·감사·HTML 렌더링 시간은 확인 가능한 실제 기록이 있을 때 별도 표시하고 중복 합산하지 않는다. GPU 활용률의 단편 수치로 실험 throughput이나 모델 성능을 설명하지 않는다.
+
+CPU 파이프라인은 renderer5단계·builder·브라우저 QA의 실측7단계 시간을 `data/postprocessing_execution.json`에 저장한다. 단계 합계와 lock 확보 이후 게시 직전 snapshot까지의 경과 시간을 구분한다. GPU 실험, 이전 감사·분석, pause, 최종 snapshot 이후 검증·rename 시간은 포함하지 않는다고 표시한다. HTML 생성 시 아직 끝나지 않은 QA 시간을 미리 쓰지 않고 완료 단계와 builder 부분 측정만 표시하며, QA 후 확정 시간 JSON을 링크한다. HTML·수치·그림·원래 QA 증거는 이 시간 기록 때문에 바꾸지 않는다.
+
+`report_manifest.json.source_configuration`에는 원래 `launch.json`의 config/manifest literal byte SHA와 현재 원본 파일의 일치 증거를 남기며 `data/launch.json`으로 원래 기록을 제공한다. JSON 의미가 같아도 파일 바이트가 바뀌면 원래 실행 설정과 일치한다고 표시하지 않는다.
 
 ## 12. 납품 전 검증과 완료 기준
 

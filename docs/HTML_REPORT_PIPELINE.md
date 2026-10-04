@@ -11,6 +11,7 @@
 | `scripts/component_report_data.py` | 48조건 완료, 8클립 전체128프레임, 원래 분석·audit·scalar SHA를 검증하고 영향표·산점도·직접 paired 차분을 계산 |
 | `scripts/component_projection.py` | 원본 NPZ·GT 카메라·저장 배열과 source SHA를 검증하고 모든 query의 tracking 및 고정 GT mask의 reconstruction 지표 재현 |
 | `scripts/render_component_comparisons.py` | CPU RGB·tracking MP4와 frame0/64/127 스틸, reconstruction 오차 지도, PGD·normalization 진단, 동일 프레임 세 열 비교 생성 |
+| `scripts/component_report_interpretation.py` | 검증된 수치로 목적·PO/DR 비교, 직접 차이와 불확실성, 클립별 일관성·이동, 전체128프레임 및 native/confidence·normalization 해석문 생성 |
 | `scripts/build_component_html_report.py` | 새로운 통계 그림 9개와 기존 그림 3개를 묶어 상대 경로의 한국어 HTML 및 수치 JSON 생성 |
 | `templates/component_report.html` | 인터넷 없는 표·dataset/목적/clip 필터, 영상, 이미지 확대, 인쇄 레이아웃 |
 | `scripts/verify_component_html_report.cjs` | 실제 브라우저에서 file://, 표 수치, 필터, 자산, 영상 재생, 모바일·인쇄 및 다른 폴더로 복사한 보고서 검증 |
@@ -50,18 +51,23 @@ Builder는 완료 자료만 받아 `built_pending_browser_qa` 상태로 저장�
 
 최종 진입점은 `<RUN>\html_report\index.html`이다. `assets`에는 통계 PNG, 조건별 스틸·영상, timeline, 동일 프레임 clean/tracking_3d/reconstruction_3d 패널과 `visualization_manifest.json`이 있다. `data`에는 보고서 수치, 새 `task_coupling_analysis.json`, CSV와 존재하는 runtime 관측 근거가 있다. `qa`에는 브라우저 검증 JSON, screenshot과 인쇄 PDF가 있다.
 
+`data/launch.json`과 manifest의 `source_configuration`은 원래 config/manifest의 literal byte SHA를 확인한다. `data/postprocessing_execution.json`은 CPU 렌더링5단계·builder·브라우저 QA의 실측 시간 및 게시 직전 경과 시간의 범위를 기록한다. 단계 합계와 전체 경과 시간을 중복 합산하지 않으며 GPU 실험·이전 감사/분석·pause 시간을 포함하지 않는다. HTML에는 생성 시점까지 끝난 단계와 builder 부분 측정을 표시하고, QA 후 확정 기록을 링크한다.
+
 `report_manifest.json`은 원래 분석·audit·scalar 입력, 원본 배열·source NPZ, 시각화 코드, guide, 보고서 자산의 SHA와 명령, CI seed/samples 및 QA 결과를 연결한다. 보고서 폴더 전체를 복사하면 인터넷 없이 열린다. 원본 NPZ·checkpoint·대용량 float32 배열은 보고서에 포함하지 않는다.
 
 보고서의 핵심 순서는 영향표 → 같은 clip의 두 상대 APD 손상 산점도 → 두 기하 목적의 직접 paired 차분 → 내부 진단·동일 프레임 영상이다. 직접 차분의 CI는 같은 clip의 차이에서 새로 계산하며 기존 CI를 빼지 않는다. 개선된 음수 변화와 N/A, 과거 실패 기록도 보존한다. PO/DR 첫 manifest 클립을 고정 사례로 제공하고, tracking APD 공격 간 차이 절댓값이 최대인 사례는 결과 기반 탐색 사례라고 명시한다.
+
+본문은 평균 수치와 함께 악화/동일/개선 클립 수, 같은 클립의 두 공격 간 이동량, 목적별 native/confidence 및128프레임 EPE 구간 변화를 설명한다. Normalization의 raw pointmap 크기·고정 GT meter 크기·무차원 비율을 구분하고, 평균의 비율과 프레임별 비율 평균을 각각 제시한다. 연결된 구조에서 함께 나타나는 현상이라는 범위를 유지하며 특정 head나 normalization의 독립 인과 효과라고 단정하지 않는다.
 
 ## CPU 테스트
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest `
   tests\test_component_report_data.py tests\test_component_visualization.py `
-  tests\test_build_component_html_report.py tests\test_component_report_pipeline.py -q
+  tests\test_component_report_interpretation.py tests\test_build_component_html_report.py `
+  tests\test_component_report_pipeline.py -q
 ```
 
 테스트의 작은 합성 배열·probe stub은 완료 gate와 계산·출처 연결을 검사하기 위한 자료다. 별도의 Docker CPU 인코딩 smoke 및 실제 브라우저 검증이 영상·HTML 동작을 검사한다. 최종 실제 보고서는 원래 run의 완료 증거를 다시 검증해야 한다.
 
-2026-10-05 준비 검증에서는 CPU 테스트110개가 통과했다. Windows의 symlink 생성 권한을 요구하는 검사1개는 skip했다. 고정 코드로 생성한 합성 보고서의 브라우저 QA에서는 상세40행·집계15행·직접 차분12행의 값, 80개 합성 영상의40조건 metadata와 두 영상의 실제 재생, 필터·프레임 선택·1440/390px 레이아웃·인쇄·다른 폴더로 옮긴 file:// 동작을 확인했다. 외부 요청과 JavaScript 오류는0이었다. 이 검증은 실제 캠페인 완료 증거가 아니다.
+2026-10-05 보완 검증에서는 CPU 테스트188개가 통과했다. Windows의 symlink 생성 권한을 요구하는 검사1개는 skip했다. 동결 코드로 생성한 새 합성 보고서의 브라우저 QA에서는 상세40행·집계15행·직접 차분12행, 신규 해석문과 클립 통계·128프레임 진단·입력 예산·시간 및 launch 근거를 확인했다. 80개 합성 영상의40조건 metadata와 두 영상의 실제 재생, 필터·프레임 선택·1440/390px·인쇄 및 이동 복사 후 file:// 동작도 통과했다. 원본·이동 복사 각각14개 검증, 산출물580개의 SHA·크기 검증을 통과했고 외부 요청·JavaScript 오류·화면 overflow는0이었다. 이 검증은 실제 캠페인 완료 증거가 아니다. [검증 기록](../reports/html_postprocessing_fidelity_20261005/verification.json)과 [합성 브라우저 증거](../reports/html_postprocessing_fidelity_20261005/synthetic_browser_qa.json)를 제공한다.

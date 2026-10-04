@@ -292,3 +292,92 @@ def test_output_assets_reject_path_escape(tmp_path):
 def test_identity_path_escape_rejected(value):
     with pytest.raises(ValueError, match="Unsafe"):
         projection.safe_component(value)
+
+
+def test_normalization_summary_distinguishes_ratio_of_means_and_framewise_ratios():
+    clean = np.tile([1., 4.], 64)
+    attack = np.full(128, 2.)
+    fixed_gt = np.linspace(2., 4., 128)
+    summary = renderer.summarize_normalization(clean, attack, fixed_gt)
+    assert summary["passed"] and summary["frame_count"] == 128
+    assert summary["clean"] == {"mean": 2.5, "median": 2.5, "min": 1., "max": 4.}
+    assert summary["ratio_of_means"] == .8
+    assert summary["framewise_ratio"]["mean"] == 1.25
+    assert summary["framewise_ratio"]["median"] == 1.25
+    assert summary["framewise_ratio"]["min"] == .5
+    assert summary["framewise_ratio"]["max"] == 2.
+    assert summary["framewise_ratio"]["valid_frames"] == 128
+    np.testing.assert_array_equal(summary["per_frame"]["fixed_gt"], fixed_gt)
+    assert "not benchmark meters" in summary["units"]["prediction_scale"]
+    assert summary["units"]["ratio"] == "dimensionless"
+
+
+def test_normalization_denominator_boundary_is_null_and_keeps_exclusion_counts():
+    clean = np.ones(128)
+    clean[:2] = [1e-13, 1e-12]
+    summary = renderer.summarize_normalization(clean, np.full(128, 2.), np.ones(128))
+    assert summary["framewise_ratio"]["values"][:2] == [None, None]
+    assert summary["framewise_ratio"]["valid_frames"] == 126
+    assert summary["framewise_ratio"]["excluded_frames"] == 2
+    assert summary["framewise_ratio"]["mean"] == 2.
+    assert summary["ratio_of_means"] == pytest.approx(2. / clean.mean())
+    empty = renderer.summarize_normalization(np.full(128, 1e-13), np.ones(128), np.ones(128))
+    assert empty["ratio_of_means"] is None
+    assert empty["framewise_ratio"]["valid_frames"] == 0
+    assert empty["framewise_ratio"]["excluded_frames"] == 128
+    assert empty["framewise_ratio"]["values"] == [None] * 128
+    assert all(empty["framewise_ratio"][key] is None for key in ("mean", "median", "min", "max"))
+    json.dumps(empty, allow_nan=False)
+
+
+@pytest.mark.parametrize("kind", ["normalization", "tracking_timeline"])
+def test_temporal_summary_rejects_64_frame_prefix(kind):
+    with pytest.raises(ValueError, match="all 128"):
+        if kind == "normalization":
+            renderer.summarize_normalization(np.ones(64), np.ones(64), np.ones(64))
+        else:
+            renderer.summarize_tracking_timeline(np.ones(64), np.ones(64), 1., 1., 4)
+
+
+def test_tracking_timeline_describes_fixed_segments_without_frame_sample_ci():
+    clean = np.ones(128)
+    attack = np.repeat([2., 1., .5, 3.], 32)
+    summary = renderer.summarize_tracking_timeline(clean, attack, 1., 1.625, 4)
+    assert summary["clean_epe_mean_m"] == 1.
+    assert summary["attack_epe_mean_m"] == 1.625
+    assert summary["delta_epe_mean_m"] == .625
+    assert summary["delta_epe_min_m"] == -.5
+    assert summary["delta_epe_max_m"] == 2.
+    assert (summary["increased_frames"], summary["equal_frames"], summary["improved_frames"]) == (64, 32, 32)
+    assert summary["query_count"] == 4 and summary["evaluation_query_times"] == 512
+    assert [(s["source_frame_start"], s["source_frame_end"], s["frame_count"]) for s in summary["fixed_segments"]] == [
+        (0, 31, 32), (32, 63, 32), (64, 95, 32), (96, 127, 32)]
+    assert [s["delta_epe_mean_m"] for s in summary["fixed_segments"]] == [1., 0., -.5, 2.]
+    assert "not independent CI samples" in summary["count_policy"]
+    with pytest.raises(ValueError, match="frame-mean tracking EPE"):
+        renderer.summarize_tracking_timeline(clean, attack, 1., 10., 4)
+
+
+def test_tracking_timeline_uses_all_queries_including_high_error_occluded_later_query(fixture_run):
+    run, project, dataset, sequence = fixture_run
+    directory = run / "conditions" / "tracking_3d" / dataset / sequence
+    with np.load(directory / "tracks.npz", allow_pickle=False) as archive:
+        tracks = {name: archive[name].copy() for name in archive.files}
+    tracks["pred"][:, 1:, 0] += .8
+    tracks["pred"][80:, 0, 0] += 2.  # This query is GT-occluded after frame79 but remains evaluated.
+    np.savez(directory / "tracks.npz", **tracks)
+    error = np.linalg.norm(tracks["pred"] - tracks["gt"], axis=-1)
+    metrics = projection.residual_metrics(error, tracks["valid"])
+    def record_edit(record):
+        record["artifact_sha256"]["tracks.npz"] = projection.sha256(directory / "tracks.npz")
+        record["tracking_metrics"].update(epe_all_m=metrics["epe_m"], apd3d_all=metrics["apd3d"])
+    update_record(run, dataset, sequence, "tracking_3d", record_edit)
+    context = projection.ComponentContext(run, project)
+    projected = context.pair(dataset, sequence, "tracking_3d")
+    summary = renderer.summarize_tracking_timeline(projected["clean_epe_per_frame_m"], projected["attack_epe_per_frame_m"],
+        projected["clean_result"]["tracking_metrics"]["epe_all_m"], projected["attack_result"]["tracking_metrics"]["epe_all_m"], 4)
+    assert summary["all_evaluation_query_times"] and summary["frame_count"] == 128
+    assert summary["attack_epe_mean_m"] == pytest.approx(float(error.mean()), rel=1e-6)
+    assert summary["attack_epe_mean_m"] > float(error[projected["visibility"]].mean())
+    assert summary["fixed_segments"][-1]["attack_epe_mean_m"] == pytest.approx(1.3, rel=1e-6)
+    np.testing.assert_allclose(projected["attack_epe_per_frame_m"], error.mean(axis=1))

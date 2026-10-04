@@ -20,7 +20,7 @@ import time
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
-from component_projection import ComponentContext, OBJECTIVES, read_json, require, sha256
+from component_projection import ComponentContext, OBJECTIVES, metric_check, read_json, require, sha256
 from render_pgd_comparisons import encode_frames, encoder_args, fonts, render_frame as rgb_frame, to_rgb8
 from render_tracking_comparisons import (ATTACK, BG, CLEAN, FG, MUTED, CANVAS_HEIGHT, CANVAS_WIDTH,
                                         overlay_panel, render_frame as legacy_tracking_frame, select_queries)
@@ -221,6 +221,76 @@ def history_plot(condition, path, identity):
     save_figure(figure, path)
 
 
+def _temporal_values(values, name, *, positive=False):
+    result = np.asarray(values, dtype=np.float64)
+    require(result.shape == (128,) and np.isfinite(result).all(), f"{name} must contain all 128 finite frames")
+    require((result > 0).all() if positive else (result >= 0).all(), f"{name} has invalid magnitude")
+    return result
+
+
+def _descriptive_stats(values):
+    values = np.asarray(values, dtype=np.float64)
+    if not values.size:
+        return {name: None for name in ("mean", "median", "min", "max")}
+    return {"mean": float(values.mean()), "median": float(np.median(values)),
+            "min": float(values.min()), "max": float(values.max())}
+
+
+def summarize_normalization(clean_values, attack_values, fixed_gt_values):
+    """Export small recorded-scale diagnostics without treating frames as CI samples."""
+    clean = _temporal_values(clean_values, "Clean native normalization", positive=True)
+    attack = _temporal_values(attack_values, "Attack native normalization", positive=True)
+    fixed_gt = _temporal_values(fixed_gt_values, "Fixed GT normalization", positive=True)
+    eligible = clean > 1e-12
+    values = np.full(128, np.nan, dtype=np.float64)
+    np.divide(attack, clean, out=values, where=eligible)
+    eligible &= np.isfinite(values)
+    valid_values = values[eligible]
+    clean_stats, attack_stats = _descriptive_stats(clean), _descriptive_stats(attack)
+    ratio_of_means = attack_stats["mean"] / clean_stats["mean"] if clean_stats["mean"] > 1e-12 else None
+    if ratio_of_means is not None and not math.isfinite(ratio_of_means):
+        ratio_of_means = None
+    return {"schema_version": 1, "passed": True, "frame_count": 128,
+            "clean": clean_stats, "attack": attack_stats, "fixed_gt": _descriptive_stats(fixed_gt),
+            "ratio_of_means": ratio_of_means,
+            "framewise_ratio": {**_descriptive_stats(valid_values), "valid_frames": int(eligible.sum()),
+                                "excluded_frames": int((~eligible).sum()),
+                                "values": [float(value) if valid else None for value, valid in zip(values, eligible)]},
+            "per_frame": {"clean": clean.tolist(), "attack": attack.tolist(), "fixed_gt": fixed_gt.tolist()},
+            "denominator_policy": "Ratio denominator must be finite and greater than 1e-12; nonfinite ratios are also excluded; exclusions are null.",
+            "ratio_mean_policy": "ratio_of_means = mean(attack)/mean(clean); framewise_ratio.mean = mean(attack[t]/clean[t]) over eligible frames.",
+            "normalization_definition": "Recorded native per-frame sum of all head2 XYZ point norms divided by 3*H*W; fixed GT uses the recorded same rule.",
+            "units": {"prediction_scale": "Raw pre-alignment pointmap coordinate magnitude; not benchmark meters",
+                      "fixed_gt_scale": "GT meter-coordinate magnitude", "ratio": "dimensionless"},
+            "interpretation_policy": "Prediction and GT raw magnitudes are not a benchmark meter effect or an isolated causal effect. Frame summaries are descriptive, not independent CI samples."}
+
+
+def summarize_tracking_timeline(clean_values, attack_values, clean_recorded_epe, attack_recorded_epe, query_count):
+    """Summarize the already verified all-query frame EPE, using every source time."""
+    clean = _temporal_values(clean_values, "Clean tracking EPE")
+    attack = _temporal_values(attack_values, "Attack tracking EPE")
+    require(isinstance(query_count, (int, np.integer)) and not isinstance(query_count, (bool, np.bool_))
+            and query_count > 0, "Tracking timeline requires the complete evaluation query count")
+    metric_check(float(clean.mean()), clean_recorded_epe, "Clean frame-mean tracking EPE")
+    metric_check(float(attack.mean()), attack_recorded_epe, "Attack frame-mean tracking EPE")
+    delta = attack - clean
+    segments = [{"source_frame_start": start, "source_frame_end": start + 31, "frame_count": 32,
+                 "clean_epe_mean_m": float(clean[start:start+32].mean()),
+                 "attack_epe_mean_m": float(attack[start:start+32].mean()),
+                 "delta_epe_mean_m": float(delta[start:start+32].mean())} for start in range(0, 128, 32)]
+    return {"schema_version": 1, "passed": True, "frame_count": 128, "query_count": int(query_count),
+            "evaluation_query_times": 128 * int(query_count), "all_evaluation_query_times": True,
+            "clean_epe_mean_m": float(clean.mean()), "attack_epe_mean_m": float(attack.mean()),
+            "delta_epe_mean_m": float(delta.mean()), "delta_epe_min_m": float(delta.min()),
+            "delta_epe_max_m": float(delta.max()), "increased_frames": int((delta > 0).sum()),
+            "equal_frames": int((delta == 0).sum()), "improved_frames": int((delta < 0).sum()),
+            "fixed_segments": segments, "frame_mean_matches_whole_clip_epe": True,
+            "comparison_tolerance": {"rtol": 1e-6, "atol": 1e-6},
+            "evaluation_population_policy": "All saved evaluation queries at all 128 times, including later occlusions; overlay point selection and GT-camera projection do not filter quantitative EPE.",
+            "alignment_policy": "Each condition uses saved pred * np.float32(tracking_metrics.scale_all).",
+            "count_policy": "Exact signed attack-minus-clean per-frame EPE; >0 increased, ==0 equal, <0 improved. Counts and fixed 32-frame segments describe temporal positions, not independent CI samples."}
+
+
 def normalization_plot(clean, attack, source, path, identity):
     c = np.asarray(clean["components"]["reconstruction_norm"])
     a = np.asarray(attack["components"]["reconstruction_norm"])
@@ -230,7 +300,7 @@ def normalization_plot(clean, attack, source, path, identity):
     frames = np.arange(128)
     for values, label in ((c, "clean prediction head2"), (a, "attack prediction head2"), (source["gt_norm"], "fixed GT")):
         axes[0, 0].plot(frames, values, label=label)
-    axes[0, 0].set(xlabel="Source frame", ylabel="Native scale (dimensionless)", title="Shared scale affects both native branches")
+    axes[0, 0].set(xlabel="Source frame", ylabel="Pointmap coordinate magnitude (before alignment)", title="Shared scale affects both native branches")
     axes[0, 0].legend(fontsize=8)
     axes[0, 1].plot(frames, a / c)
     axes[0, 1].axhline(1, color="#777777", linestyle="--")
@@ -245,7 +315,7 @@ def normalization_plot(clean, attack, source, path, identity):
         axis.set_xticks(range(len(fields)), labels)
         axis.set(ylabel="Confidence score (not probability)" if index == 0 else "Unweighted native L21 (dimensionless)")
         axis.legend(fontsize=8)
-    figure.suptitle(f"{identity}\nFrozen GT; input-dependent prediction scale and confidence", fontsize=11)
+    figure.suptitle(f"{identity}\nPrediction: raw pointmap coordinate scale; GT: meter-coordinate magnitude.\nOnly attack/clean ratios and normalized L21 are dimensionless; raw scale gaps are not benchmark meter effects.", fontsize=10)
     save_figure(figure, path)
 
 
@@ -401,6 +471,13 @@ def render_pair(context, dataset, sequence, objective, root, fps, preview_frames
     history_path, normalization_path = directory / "pgd_history.png", directory / "normalization.png"
     history_plot(attack, history_path, f"{dataset}/{title}")
     normalization_plot(clean, attack, source, normalization_path, f"{dataset}/{title}")
+    normalization_summary = summarize_normalization(clean["components"]["reconstruction_norm"],
+                                                     attack["components"]["reconstruction_norm"], source["gt_norm"])
+    tracking_timeline_summary = summarize_tracking_timeline(projected["clean_epe_per_frame_m"],
+                                                           projected["attack_epe_per_frame_m"],
+                                                           clean["record"]["tracking_metrics"]["epe_all_m"],
+                                                           attack["record"]["tracking_metrics"]["epe_all_m"],
+                                                           np.asarray(projected["gt_xy"]).shape[1])
     assets += [asset_record(history_path, root, "pgd_history"), asset_record(normalization_path, root, "normalization")]
     if not frames_only:
         first = next(rgb_frames())
@@ -423,6 +500,7 @@ def render_pair(context, dataset, sequence, objective, root, fps, preview_frames
              "selected_state": attack["record"]["selected_state"], "assets": assets,
              "clean_epe_per_frame_m": projected["clean_epe_per_frame_m"].tolist(),
              "attack_epe_per_frame_m": projected["attack_epe_per_frame_m"].tolist(),
+             "normalization_summary": normalization_summary, "tracking_timeline_summary": tracking_timeline_summary,
              "cpu_render_seconds": time.perf_counter() - started, "new_model_inference": False,
              "renderer_source_sha256": renderer_source_hashes()}
     write_json(directory / "visualization.json", entry)

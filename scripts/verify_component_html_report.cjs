@@ -147,6 +147,157 @@ async function summaryTables(page,payload,dataset) {
   }
   return {impact_rows:5,contrast_rows:4,scatter_points:points.length,scatter_excluded:excluded.length,scatter_connections:connections.length};
 }
+async function interpretationParagraphs(page,selector,expected,label) {
+  check(Array.isArray(expected),`Missing interpretation evidence: ${label}`);
+  const rows=await page.locator(selector+' p').evaluateAll(nodes=>nodes.map(node=>({text:node.textContent.trim(),
+    dataset:node.dataset.dataset||null,objective:node.dataset.objective||null})));
+  assert.deepStrictEqual(rows.map(row=>row.text),expected,`Visible interpretation differs from verified scalar narrative: ${label}`);
+  return rows;
+}
+async function numericKeyRows(page,selector,expected,label) {
+  const actual=await page.locator(selector+' tbody tr').evaluateAll(nodes=>nodes.map(row=>({
+    dataset:row.dataset.dataset||null,sequence:row.dataset.sequence||null,objective:row.dataset.objective||null,
+    metric:row.dataset.metric||null,state:row.dataset.state||null,stage:row.dataset.stage||null,
+    cells:Array.from(row.querySelectorAll('[data-key]')).map(cell=>({key:cell.dataset.key,text:cell.textContent.trim(),
+      digits:cell.dataset.digits??null,signed:cell.dataset.signed??null,raw:cell.dataset.raw??null}))})));
+  check(actual.length===expected.length,`${label} row support differs: ${actual.length}/${expected.length}`);
+  for(let i=0;i<expected.length;i++) {
+    const reference=expected[i],row=actual[i];
+    for(const identity of ['dataset','sequence','objective','metric','state','stage']) if(reference[identity]!==undefined)
+      check(row[identity]===reference[identity],`${label} row ${i} ${identity} differs`);
+    const cells=new Map(row.cells.map(cell=>[cell.key,cell]));
+    check(cells.size===row.cells.length,`${label} has duplicate numeric keys`);
+    for(const field of reference.fields) {
+      const cell=cells.get(field.key);check(cell,`${label} omits visible numeric ${field.key}`);
+      const text=field.text!==undefined?field.text:field.signed?sign(field.value,field.digits??3):fmt(field.value,field.digits??3);
+      check(cell.text===text,`${label} actual numeric text differs at ${i}/${field.key}: ${cell.text}/${text}`);
+      if(cell.digits!==null&&field.digits!==undefined) check(Number(cell.digits)===field.digits,`${label} display precision differs: ${field.key}`);
+      if(cell.signed!==null&&field.signed!==undefined) check(cell.signed===String(field.signed),`${label} sign display policy differs: ${field.key}`);
+      if(field.raw!==undefined) check(cell.raw===String(field.raw),`${label} actual raw status differs: ${field.key}`);
+    }
+  }
+  return actual.length;
+}
+async function interpretationGroup(page,payload,dataset) {
+  const value=payload.interpretation;
+  check(value?.schema_version===1&&value.run_signature===payload.run_signature,'Interpretation must bind the completed scalar run');
+  const impacts=await interpretationParagraphs(page,'#impact-interpretation',value.impact_by_group[dataset],dataset+'/impact');
+  check(impacts.length===5&&impacts.every((row,i)=>row.dataset===dataset&&row.objective===OBJECTIVES[i]),'Interpretation impact scope/objective differs');
+  const comparisons=await interpretationParagraphs(page,'#dataset-comparison',value.dataset_comparison,'PO/DR comparison');
+  check(comparisons.length===5&&comparisons.every((row,i)=>row.objective===OBJECTIVES[i]),'Dataset comparison lost an objective');
+  const contrasts=await interpretationParagraphs(page,'#contrast-interpretation',value.contrasts_by_group[dataset],dataset+'/contrast');
+  check(contrasts.every(row=>row.dataset===dataset),'Contrast narrative did not follow the dataset filter');
+  const movement=value.movement_by_group[dataset];
+  const moveParagraphs=await interpretationParagraphs(page,'#movement-interpretation',movement.summary,dataset+'/movement');
+  check(moveParagraphs.every(row=>row.dataset===dataset),'Movement narrative did not follow the dataset filter');
+  const movementRows=await numericKeyRows(page,'#movement-table',movement.clips.map(row=>({dataset:row.dataset,sequence:row.sequence,
+    fields:[{key:'from_x',value:row.from[0],digits:2,signed:true},{key:'from_y',value:row.from[1],digits:2,signed:true},
+      {key:'to_x',value:row.to[0],digits:2,signed:true},{key:'to_y',value:row.to[1],digits:2,signed:true},
+      {key:'delta_x_pct',value:row.delta_x_pct,digits:2,signed:true},{key:'delta_y_pct',value:row.delta_y_pct,digits:2,signed:true}]})),dataset+'/movement coordinates');
+  const objective=await page.locator('#detail-objective').inputValue();
+  const rows=value.consistency_by_group[dataset].filter(row=>objective==='all'||row.objective===objective);
+  const consistencyRows=await numericKeyRows(page,'#consistency-table',rows.map(row=>({dataset:row.dataset,objective:row.objective,metric:row.metric,
+    fields:[...['worsened','unchanged','improved'].map(key=>({key:'counters.'+key,value:row.counters[key],digits:0})),
+      ...['median','min','max'].map(key=>({key,value:row[key],digits:row.metric.includes('epe')?3:2,signed:true}))]})),dataset+'/clip consistency');
+  const paired=dataset==='all'?8:4;
+  check(rows.every(row=>row.paired_clips===paired&&row.counters.worsened+row.counters.unchanged+row.counters.improved===paired),
+    'Clip consistency counts must preserve paired population');
+  const scope=await page.locator('#consistency-scope').textContent();
+  check(scope.includes(GROUP_LABELS[dataset])&&scope.includes((objective==='all'?'다섯 목적':objective))
+    &&scope.includes(rows.length+'개 지표 행')&&scope.includes('paired 클립 '+paired),'Visible clip consistency scope differs');
+  const extrema=await page.locator('#consistency-table tbody tr').evaluateAll(nodes=>nodes.map(row=>Array.from(row.cells).slice(-2).map(cell=>cell.textContent.trim())));
+  assert.deepStrictEqual(extrema,rows.map(row=>[row.min_clips.join(', '),row.max_clips.join(', ')]),'Visible minimum/maximum clip identities differ');
+  return {impact_paragraphs:impacts.length,dataset_comparison_paragraphs:comparisons.length,
+    contrast_paragraphs:contrasts.length,movement_rows:movementRows,consistency_rows:consistencyRows};
+}
+async function linkedCpuAndLaunchEvidence(page,root,payload) {
+  const cpu=payload.cpu_postprocessing,configuration=payload.source_configuration;
+  check(cpu?.status==='snapshot_before_browser_qa'&&cpu.not_gpu_experiment_time===true
+    &&typeof cpu.builder_elapsed_until_html_content_snapshot_seconds==='number'
+    &&Number.isFinite(cpu.builder_elapsed_until_html_content_snapshot_seconds)&&cpu.builder_elapsed_until_html_content_snapshot_seconds>=0,
+    'CPU timing snapshot must retain its measured partial scope');
+  check(cpu.final_cpu_execution_evidence_url==='data/postprocessing_execution.json','CPU timing link must be portable and explicit');
+  check((await page.locator('#cpu-evidence-link').getAttribute('href'))===cpu.final_cpu_execution_evidence_url,'Visible CPU timing evidence link differs');
+  check((await page.locator('#launch-link').getAttribute('href'))==='data/launch.json','Visible launch download must be local');
+  const launchFile=localPath(root,'data/launch.json'),launch=await readJson(launchFile);
+  check(await hashFile(launchFile)===configuration.launch_json_sha256,'Copied original launch byte SHA differs');
+  assert.deepStrictEqual(launch,configuration.launch_metadata,'Copied launch metadata differs from bound source evidence');
+  check(launch.RunName===payload.run_id&&launch.Clips===8&&launch.ExpectedConditions===48&&launch.FramesPerClip===128&&launch.AllFrames===true,
+    'Original launch evidence must describe the complete 8clip/128frame campaign');
+  const files=configuration.configuration_files;
+  const expectedFiles=[['configs/loss_components_8clips_allframes.json','ConfigSHA256'],
+    ['docker/manifests/loss_components_8clips_allframes.json','ManifestSHA256']];
+  const configurationRows=await page.locator('#configuration-table tbody tr').allTextContents();
+  check(configurationRows.length===2&&Object.keys(files).length===2,'Both original configuration files need visible byte-hash proof');
+  for(const [i,[relative,key]] of expectedFiles.entries()) {
+    const evidence=files[relative];
+    check(evidence&&evidence.sha256===launch[key]&&evidence.matched_original_launch===true&&evidence.hash_kind==='literal file bytes',
+      `Original launch does not bind ${relative}`);
+    check(configurationRows[i].includes(relative)&&configurationRows[i].includes(evidence.sha256)
+      &&configurationRows[i].includes(String(evidence.bytes)),`Visible original config proof differs: ${relative}`);
+  }
+  const execution=await readJson(localPath(root,cpu.final_cpu_execution_evidence_url));
+  if(execution.status==='snapshot_before_browser_qa') assert.deepStrictEqual(execution,cpu,'Linked pre-QA CPU snapshot differs from HTML data');
+  else check(execution.status==='cpu_stages_complete'&&execution.run_signature===payload.run_signature&&execution.run_id===payload.run_id
+    &&execution.cpu_only===true&&execution.new_model_inference===false&&execution.numerical_experiment_modified===false,
+    'Completed CPU evidence must retain the same run and CPU-only execution scope');
+  check(Array.isArray(cpu.stages)&&cpu.stages.every(stage=>stage.status==='complete'&&stage.cpu_only===true
+    &&typeof stage.elapsed_seconds==='number'&&Number.isFinite(stage.elapsed_seconds)&&stage.elapsed_seconds>=0),
+    'HTML CPU snapshot must include successfully measured CPU stages only');
+  await numericKeyRows(page,'#cpu-timing-table',[...cpu.stages.map(stage=>({stage:stage.stage,
+    fields:[{key:'elapsed_seconds',value:stage.elapsed_seconds,digits:3}]})),
+    {stage:'builder_partial',fields:[{key:'elapsed_seconds',value:cpu.builder_elapsed_until_html_content_snapshot_seconds,digits:3}]}],
+    'completed CPU stages and partial builder duration');
+  return {launch_sha256:configuration.launch_json_sha256,configuration_files:expectedFiles.length,
+    cpu_evidence_status:execution.status,builder_partial_seconds:cpu.builder_elapsed_until_html_content_snapshot_seconds,cpu_timing_rows:cpu.stages.length+1};
+}
+async function interpretationCase(page,payload,row,dataset) {
+  const value=payload.interpretation,reference=value.cases.find(r=>r.dataset===row.dataset&&r.sequence===row.sequence&&r.objective===row.objective);
+  check(reference,'Selected case interpretation is missing');
+  await interpretationParagraphs(page,'#case-interpretation',reference.summary,[row.dataset,row.sequence,row.objective].join('/'));
+  const diagnostics=value.diagnostics_by_group[dataset];
+  const diagnosticParagraphs=await interpretationParagraphs(page,'#diagnostic-interpretation',
+    [diagnostics[OBJECTIVES.indexOf(row.objective)],diagnostics.at(-1)],dataset+'/'+row.objective+'/native diagnostics');
+  check(diagnosticParagraphs.every(r=>r.dataset===dataset)&&diagnosticParagraphs[0].objective===row.objective,
+    'Native diagnostic interpretation must follow both case objective and group');
+  const timeline=reference.tracking_timeline_summary,norm=reference.normalization_summary;
+  check(timeline.frame_count===128&&timeline.all_evaluation_query_times===true
+    &&timeline.evaluation_query_times===128*timeline.query_count
+    &&timeline.increased_frames+timeline.equal_frames+timeline.improved_frames===128,
+    'Selected temporal interpretation omitted full query/time support');
+  await numericKeyRows(page,'#temporal-segment-table',timeline.fixed_segments.map(segment=>({fields:[
+    ...['source_frame_start','source_frame_end','frame_count'].map(key=>({key,value:segment[key],digits:0})),
+    ...['clean_epe_mean_m','attack_epe_mean_m'].map(key=>({key,value:segment[key],digits:3})),
+    {key:'delta_epe_mean_m',value:segment.delta_epe_mean_m,digits:3,signed:true}]})),row.objective+'/fixed 32-frame segments');
+  await numericKeyRows(page,'#normalization-summary-table',['clean','attack','fixed_gt'].map(state=>({state,
+    fields:['mean','median','min','max'].map(key=>({key,value:norm[state][key],digits:3}))})),row.objective+'/raw normalization magnitudes');
+  await numericKeyRows(page,'#normalization-ratio-table',[{fields:[{key:'ratio_of_means',value:norm.ratio_of_means,digits:3},
+    ...['mean','median','min','max'].map(key=>({key,value:norm.framewise_ratio[key],digits:3})),
+    ...['valid_frames','excluded_frames'].map(key=>({key,value:norm.framewise_ratio[key],digits:0}))]}],row.objective+'/normalization ratios and denominator support');
+  const nativeRows=await page.locator('#diagnostic-table tbody tr').evaluateAll(nodes=>nodes.map(tr=>Array.from(tr.cells).map(cell=>cell.textContent.trim())));
+  const fields=['tracking_l21','reconstruction_l21','track_raw_conf_mean','track_conf_mean','reconstruction_conf_mean'];
+  assert.deepStrictEqual(nativeRows,[['clean',...fields.map(key=>fmt(row.clean_diagnostics[key],3)),'기준 입력'],
+    [row.objective,...fields.map(key=>fmt(row.loss_terms.diagnostics[key],3)),row.selected_state.restart+'/'+row.selected_state.step]],
+    'Selected native/confidence diagnostic values differ from original result scalars');
+  return {normalization_rows:3,ratio_rows:1,temporal_segments:4,temporal_frames:128,evaluation_queries:timeline.query_count};
+}
+async function interpretationBudget(page,payload) {
+  const budget=payload.interpretation.input_budget;
+  await interpretationParagraphs(page,'#input-budget',budget.summary,'all40 epsilon/selected-state budget');
+  await numericKeyRows(page,'#budget-table',[{fields:[
+    ...['max_linf','epsilon_linf','validation_atol'].map(key=>({key,value:budget[key],digits:8})),
+    {key:'max_linf_255',value:budget.max_linf_255,digits:6},
+    ...['within_budget','attacks'].map(key=>({key,value:budget[key],digits:0})),
+    {key:'within_budget_passed',raw:budget.within_budget===budget.attacks&&budget.attacks===40,
+      text:budget.within_budget===budget.attacks&&budget.attacks===40?'통과':'실패'}]}],'input L-infinity budget');
+  const states=[['clean','selected_clean_count'],['initialization','selected_initial_count'],
+    ['early','selected_early_count'],['final','selected_final_count']];
+  await numericKeyRows(page,'#selected-state-table',states.map(([state,key])=>({state,fields:[{key:'count',value:budget[key],digits:0}]})),
+    'selected clean/random/early/final state support');
+  check(states.reduce((sum,[,key])=>sum+budget[key],0)===40&&budget.within_budget===40&&budget.attacks===40,
+    'Input-budget and selected-state counts must cover all 40 independent attacks');
+  return {within_budget:budget.within_budget,attacks:budget.attacks,max_linf:budget.max_linf};
+}
 async function readyImages(page) {
   await page.waitForFunction(()=>Array.from(document.images).filter(img=>img.getAttribute('src')).every(img=>img.complete && img.naturalWidth>0),{},{timeout:30000});
 }
@@ -191,6 +342,10 @@ async function exerciseReport(browser,root,payload,qaDir,portable=false) {
     const references=await checkLocalReferences(page,root);
     await numericRows(page,payload.conditions);
     await summaryTables(page,payload,'all');
+    const interpretation=await interpretationGroup(page,payload,'all');
+    const budget=await interpretationBudget(page,payload);
+    const linkedEvidence=await linkedCpuAndLaunchEvidence(page,root,payload);
+    steps.push({check:'interpretation_budget_launch_and_cpu_metadata',passed:true,...interpretation,...budget,...linkedEvidence});
     const initialVideos=await readyVideos(page);
     check(initialVideos.length===2 && initialVideos.every(video=>video.paused && !video.autoplay && video.controls),'Videos must have controls and no automatic playback');
     steps.push({check:'file_url_ready_local_assets_no_autoplay',passed:true,local_references:references});
@@ -204,11 +359,16 @@ async function exerciseReport(browser,root,payload,qaDir,portable=false) {
       const expected=payload.conditions.filter(row=>dataset==='all'||row.dataset===dataset);
       await numericRows(page,expected);
       const summary=await summaryTables(page,payload,dataset);
-      steps.push({check:'dataset_filter_numeric_rows_and_summaries',dataset,count:expected.length,passed:true,...summary});
+      const interpretation=await interpretationGroup(page,payload,dataset);
+      const selectedId=await page.locator('#clip-select').inputValue(),objective=await page.locator('#objective-select').inputValue();
+      const selectedRow=payload.conditions.find(row=>row.dataset+'/'+row.sequence===selectedId&&row.objective===objective);
+      await interpretationCase(page,payload,selectedRow,dataset);
+      steps.push({check:'dataset_filter_numeric_rows_and_summaries',dataset,count:expected.length,passed:true,...summary,...interpretation});
     }
     await allOption(page,'#detail-objective');await allOption(page,'#detail-clip');
     await page.selectOption('#detail-objective','tracking_3d');
     await numericRows(page,payload.conditions.filter(row=>row.objective==='tracking_3d'));
+    check((await interpretationGroup(page,payload,'all')).consistency_rows===4,'Clip consistency table did not follow detail objective filter');
     const first=payload.clips[0], firstId=first.dataset+'/'+first.sequence;
     await page.selectOption('#detail-clip',firstId);
     await numericRows(page,payload.conditions.filter(row=>row.objective==='tracking_3d'&&row.dataset===first.dataset&&row.sequence===first.sequence));
@@ -229,6 +389,7 @@ async function exerciseReport(browser,root,payload,qaDir,portable=false) {
       await page.selectOption('#clip-select',row.dataset+'/'+row.sequence);
       await page.selectOption('#objective-select',row.objective);
       await readyImages(page);const videos=await readyVideos(page);
+      await interpretationCase(page,payload,row,'all');
       check(videos.length===2 && videos.every(video=>video.paused && !video.autoplay),'Case change started automatic playback');
       const media=payload.media.find(value=>value.dataset===row.dataset&&value.sequence===row.sequence&&value.objective===row.objective);
       for(const [id,name] of [['rgb-video','rgb_comparison.mp4'],['tracking-video','tracking_comparison.mp4']]) {

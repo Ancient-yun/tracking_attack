@@ -19,6 +19,8 @@ import sys
 from component_report_data import (OBJECTIVES, ReportValidationError,
                                    compute_task_coupling, load_verified_study,
                                    make_coupling_plots, sha_file)
+from component_report_interpretation import build_interpretation
+from render_component_comparisons import summarize_normalization, summarize_tracking_timeline
 
 
 METRICS = ("tracking_apd_drop_pp", "reconstruction_apd_drop_pp",
@@ -135,6 +137,7 @@ def validate_visualizations(assets_dir, study):
         return inventory
     expected = {(d, s, o) for d, s in identities for o in OBJECTIVES}
     indexed = {}
+    clean_baselines = {}
     media = []
     for clip in manifest.get("clips", []):
         key = (clip["dataset"], clip["sequence"], clip["objective"])
@@ -151,6 +154,32 @@ def validate_visualizations(assets_dir, study):
                 or clip.get("projection_checks", {}).get("passed") is not True
                 or clip.get("reconstruction_checks", {}).get("passed") is not True):
             raise ReportValidationError(f"Rendered condition checks incomplete: {key}")
+        normalization = clip.get("normalization_summary", {})
+        values = normalization.get("per_frame", {})
+        try:
+            recomputed_norm = summarize_normalization(values.get("clean"), values.get("attack"), values.get("fixed_gt"))
+        except (ValueError, TypeError) as exc:
+            raise ReportValidationError(f"Invalid full-frame normalization summary: {key}: {exc}") from exc
+        if normalization != recomputed_norm:
+            raise ReportValidationError(f"Normalization descriptive statistics changed: {key}")
+        clean_record, attack_record = study["records"][(*key[:2], "clean")], study["records"][key]
+        timeline = clip.get("tracking_timeline_summary", {})
+        if not (timeline.get("query_count") == clean_record["tracking_metrics"].get("num_queries")
+                == attack_record["tracking_metrics"].get("num_queries")):
+            raise ReportValidationError(f"Temporal summary does not cover all saved evaluation queries: {key}")
+        try:
+            recomputed_timeline = summarize_tracking_timeline(
+                clip.get("clean_epe_per_frame_m"), clip.get("attack_epe_per_frame_m"),
+                clean_record["tracking_metrics"]["epe_all_m"], attack_record["tracking_metrics"]["epe_all_m"],
+                timeline.get("query_count"))
+        except (ValueError, TypeError) as exc:
+            raise ReportValidationError(f"Invalid full-frame temporal summary: {key}: {exc}") from exc
+        if timeline != recomputed_timeline:
+            raise ReportValidationError(f"Tracking temporal descriptive statistics changed: {key}")
+        baseline = (values["clean"], values["fixed_gt"], clip["clean_epe_per_frame_m"], timeline["query_count"])
+        previous = clean_baselines.setdefault(key[:2], baseline)
+        if previous != baseline:
+            raise ReportValidationError(f"Shared clean/GT temporal baseline differs across attack objectives: {key}")
         recon = clip["reconstruction_checks"].get("conditions", {})
         if set(recon) != {"clean", *OBJECTIVES} or any(recon[o].get("passed") is not True for o in recon):
             raise ReportValidationError(f"Reconstruction checks must cover clean and all five attacks: {key}")
@@ -186,6 +215,7 @@ def validate_visualizations(assets_dir, study):
         media.append({"dataset": key[0], "sequence": key[1], "objective": key[2],
                       "selection": clip.get("selection", {}), "checks": {
                           "projection": clip["projection_checks"], "reconstruction": clip["reconstruction_checks"]},
+                      "normalization_summary": normalization, "tracking_timeline_summary": timeline,
                       "assets": inventory})
     if set(indexed) != expected:
         raise ReportValidationError(f"Missing rendered conditions: {sorted(expected - set(indexed))}")
@@ -287,6 +317,57 @@ def select_cases(study, coupling):
     return selected
 
 
+def source_configuration_evidence(study, project_root):
+    """Bind the original launch's byte hashes to the current source files."""
+    run_dir, project_root = Path(study["run_dir"]), Path(project_root).resolve()
+    launch_path = run_dir / "launch.json"
+    launch = read_json(launch_path)
+    if (launch.get("RunName") != run_dir.name or launch.get("Clips") != 8
+            or launch.get("ExpectedConditions") != 48 or launch.get("FramesPerClip") != 128
+            or launch.get("AllFrames") is not True):
+        raise ReportValidationError("Original launch scope differs from the completed study")
+    files = {}
+    for relative, field, signed_key in (("configs/loss_components_8clips_allframes.json", "ConfigSHA256", "config"),
+                                       ("docker/manifests/loss_components_8clips_allframes.json", "ManifestSHA256", "manifest")):
+        path = (project_root / relative).resolve()
+        if not path.is_relative_to(project_root) or not path.is_file() or sha_file(path) != launch.get(field):
+            raise ReportValidationError(f"Original launch source file SHA differs: {relative}")
+        if read_json(path) != study["metadata"][signed_key]:
+            raise ReportValidationError(f"Original launch source content differs from signed run: {relative}")
+        files[relative] = {"path": str(path), "sha256": launch[field], "bytes": path.stat().st_size,
+                           "matched_original_launch": True, "hash_kind": "literal file bytes"}
+    return {"launch_json_sha256": sha_file(launch_path), "launch_metadata": launch,
+            "configuration_files": files}
+
+
+def cpu_timing_snapshot(run_dir, output_dir, builder_started):
+    """Display finished CPU renderer times without claiming future QA duration."""
+    path = Path(run_dir) / "html_postprocessing.json"
+    rows, attempt_id = [], None
+    if path.is_file():
+        state = read_json(path)
+        if Path(state.get("staging_dir") or "").resolve() == Path(output_dir).resolve():
+            attempt_id = state.get("attempt_id")
+            completed = [row for row in state.get("stages", []) if row.get("status") == "complete"]
+            expected = ["render:" + objective for objective in OBJECTIVES]
+            if [row.get("stage") for row in completed] != expected[:len(completed)] or len(completed) > len(expected):
+                raise ReportValidationError("CPU timing snapshot has unexpected completed renderer stages")
+            for row in completed:
+                elapsed = row.get("elapsed_seconds")
+                if (isinstance(elapsed, bool) or not isinstance(elapsed, (int, float))
+                        or not math.isfinite(elapsed) or elapsed < 0 or row.get("cpu_only") is not True):
+                    raise ReportValidationError("CPU timing snapshot requires finite nonnegative CPU durations")
+            rows = [{key: row.get(key) for key in ("stage", "status", "started_at_utc", "completed_at_utc", "elapsed_seconds", "cpu_only")}
+                    for row in completed]
+    return {"schema_version": 1, "status": "snapshot_before_browser_qa", "attempt_id": attempt_id,
+            "recorded_at_utc": datetime.now(timezone.utc).isoformat(), "stages": rows,
+            "builder_elapsed_until_html_content_snapshot_seconds": (datetime.now(timezone.utc) - builder_started).total_seconds(),
+            "builder_snapshot_scope": "Elapsed builder CPU work up to HTML content assembly; excludes renderer and browser QA.",
+            "final_cpu_execution_evidence_url": "data/postprocessing_execution.json",
+            "not_gpu_experiment_time": True,
+            "scope": "Completed CPU stages only; final QA and time until publication are recorded after QA in the linked JSON. GPU experiment, existing artifact audit/analysis and pause intervals are excluded."}
+
+
 def build_report(run_dir, *, analysis_dir=None, assets_dir=None, output_dir=None,
                  language="ko", require_complete=True, command=None):
     if language != "ko" or require_complete is not True:
@@ -303,6 +384,7 @@ def build_report(run_dir, *, analysis_dir=None, assets_dir=None, output_dir=None
     study = load_verified_study(run_dir, analysis_dir=analysis_dir, require_complete=True)
     source_assets = Path(assets_dir or output_dir / "assets").resolve()
     visual, media, common = validate_visualizations(source_assets, study)
+    configuration = source_configuration_evidence(study, visual.get("project_root", Path(__file__).resolve().parents[1]))
     visual_sha = sha_file(source_assets / "visualization_manifest.json")
     target_assets = output_dir / "assets"
     if source_assets != target_assets.resolve():
@@ -312,6 +394,7 @@ def build_report(run_dir, *, analysis_dir=None, assets_dir=None, output_dir=None
     else:
         target_assets.mkdir(parents=True, exist_ok=True)
     coupling = compute_task_coupling(study, samples=2000, seed=20261004)
+    interpretation = build_interpretation(study, coupling, visual)
     coupling_plots = make_coupling_plots(coupling, target_assets)
     analysis_root = Path(study["analysis_dir"])
     original_plot_hashes = {}
@@ -327,6 +410,9 @@ def build_report(run_dir, *, analysis_dir=None, assets_dir=None, output_dir=None
         shutil.copy2(run_dir / filename, data_dir / filename)
     write_atomic(data_dir / "task_coupling_analysis.json", json_text(coupling))
     record_rows = conditions_payload(study)
+    cpu_timing = cpu_timing_snapshot(run_dir, output_dir, started)
+    write_atomic(data_dir / "postprocessing_execution.json", json_text(cpu_timing))
+    shutil.copy2(run_dir / "launch.json", data_dir / "launch.json")
     runtime = {}
     runtime_path = run_dir / "postprocessing_revision.json"
     if runtime_path.is_file():
@@ -346,6 +432,8 @@ def build_report(run_dir, *, analysis_dir=None, assets_dir=None, output_dir=None
         "objectives": list(OBJECTIVES), "clips": [{"dataset": d, "sequence": s} for d, s in study["identities"]],
         "impact": coupling["impact_matrix"], "scatter": coupling["scatter"],
         "contrasts": coupling["geometry_contrasts"], "conditions": record_rows,
+        "interpretation": interpretation, "source_configuration": configuration,
+        "cpu_postprocessing": cpu_timing,
         "case_selections": select_cases(study, coupling),
         "media": media, "common_media": common, "visualization": {
             "status": visual["status"], "cpu_only": True, "new_model_inference": False,
@@ -373,6 +461,8 @@ def build_report(run_dir, *, analysis_dir=None, assets_dir=None, output_dir=None
     refreshed = load_verified_study(run_dir, analysis_dir=analysis_dir, require_complete=True)
     if refreshed["input_sha256"] != study["input_sha256"]:
         raise ReportValidationError("Study evidence changed during report generation")
+    if source_configuration_evidence(refreshed, visual.get("project_root", Path(__file__).resolve().parents[1])) != configuration:
+        raise ReportValidationError("Launch or source configuration changed during report generation")
     validate_visualizations(target_assets, refreshed)
     if sha_file(target_assets / "visualization_manifest.json") != visual_sha:
         raise ReportValidationError("Visualization manifest changed during report generation")
@@ -386,6 +476,7 @@ def build_report(run_dir, *, analysis_dir=None, assets_dir=None, output_dir=None
     code_paths = [Path(__file__), template_path]
     code_paths.extend(Path(__file__).with_name(name) for name in (
         "component_report_data.py", "component_projection.py", "render_component_comparisons.py",
+        "component_report_interpretation.py",
         "render_pgd_comparisons.py", "render_tracking_comparisons.py", "tracking_projection.py",
         "verify_component_html_report.cjs", "run_component_report_pipeline.py"))
     report_manifest = {
@@ -395,6 +486,7 @@ def build_report(run_dir, *, analysis_dir=None, assets_dir=None, output_dir=None
         "project_root": visual.get("project_root", str(Path(__file__).resolve().parents[1])),
         "provenance": payload["provenance"], "config": payload["config"], "dataset_manifest": payload["dataset_manifest"],
         "execution_evidence": {"campaign": study["campaign"], "resume": study["resume"]},
+        "source_configuration": configuration,
         "scope": payload["scope"], "analysis_status": payload["status"], "artifact_audit": payload["audit"],
         "synthetic_only": payload["synthetic_only"],
         "analysis_json_sha256": sha_file(analysis_root / "study_analysis.json"),
@@ -410,7 +502,8 @@ def build_report(run_dir, *, analysis_dir=None, assets_dir=None, output_dir=None
         "bootstrap": payload["contrasts"]["bootstrap"], "scatter_definition": payload["scatter"]["definition"],
         "preview_frame_indices": [0, 64, 127], "contrast_direction": payload["contrasts"]["direction"],
         "command": command or sys.argv, "outputs": output_files, "missing": [], "errors": [],
-        "browser_qa": {"status": "pending"}, "postprocess_seconds": (datetime.now(timezone.utc) - started).total_seconds(),
+        "browser_qa": {"status": "pending"}, "builder_seconds": (datetime.now(timezone.utc) - started).total_seconds(),
+        "builder_time_scope": "CPU builder only: statistics/plots/assets copy/hash/HTML assembly; renderer and browser QA are separate stages.",
     }
     report_manifest["outputs"]["index.html"] = {"sha256": hashlib.sha256(rendered.encode("utf-8")).hexdigest(),
                                                        "bytes": len(rendered.encode("utf-8"))}
