@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "status": "paused",
+  "requested_at_utc": null,
+  "recorded_at_utc": "2026-10-04T13:29:30.2453954Z",
+  "request_text": "이 로스 실험까지만 하고 멈춰봐 다음 로스 실험은 진행하지 말고",
+  "stop_after_objective": "tracking_3d",
+  "original_container_id": "ad6c3856482b59a87321d1d6a0478364ca287b8af37207d5586fbc791ddd62ed",
+  "original_container_name": "st4rtrack-lossstudy-allframes-20261004",
+  "original_container_finished_at_utc": "2026-10-04T13:28:37.213919728Z",
+  "original_container_exit_code": 143,
+  "original_image_id": "sha256:c07e78bf94c671f41392c98e5558cb49296e4187fc7682c51f74467d76539398",
+  "completed_tracking_3d_before_resume": 7,
+  "completed_conditions_before_resume": 23,
+  "incomplete_condition_restarted": "ds_mini/423875-3_obj_source_left_0",
+  "intervention_reason": "Frozen running module has no loss-boundary stop. Stop incomplete last clip and resume via separate event wrapper that exits before later objectives; numerical sources/config/manifest/image unchanged.",
+  "original_full_campaign_expected_conditions": 48,
+  "requested_completed_conditions": 24,
+  "wrapper_sha256": "026f25ebdaf7352eb1f343216cff9bbbc974208b2e8a2f0899b6480e0ea2aa83",
+  "original_campaign_driver_reused": false,
+  "automatic_resume_enabled": false,
+  "request_observed_at_utc": "2026-10-04T13:27:01Z",
+  "paused_at_utc": "2026-10-04T13:49:18.051985+00:00",
+  "completed_conditions": 24,
+  "original_expected_conditions": 48,
+  "completed_attack_objectives": [
+    "tracking_mse",
+    "tracking_3d"
+  ],
+  "not_started_objectives": [
+    "confidence",
+    "joint_training",
+    "reconstruction_3d"
+  ],
+  "frames_per_clip": 128,
+  "clips_per_objective": 8,
+  "full_campaign_completed": false,
+  "boundary_verified": true,
+  "verification_scope": "signed result metadata and saved-input replay records; not the full 48-condition independent audit"
+}

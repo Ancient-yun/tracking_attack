@@ -111,6 +111,10 @@ docker compose -f compose.yaml -f compose.loss.yaml run --rm --no-deps experimen
 
 ## 현재 본 실험: PO 4 + DR 4, 각 클립 전체 128프레임
 
+2026-10-04 사용자의 요청으로 `tracking_3d`의 8클립·각 128프레임·PGD-20까지 완료하고 한국시간 22:49:19에 컨테이너가 종료됐습니다(exit 0). `reconstruction_3d`, `confidence`, `joint_training`의 시작 이벤트와 결과는 모두 0개입니다. 원래 48조건 계획은 보존하고, clean 8 + MSE 8 + tracking 3D 8의 24조건 부분 완료로 기록합니다. [중단 요청](../reports/lossstudy_allframes_20261004_183750/pause_request.json), [중단 상태](../reports/lossstudy_allframes_20261004_183750/requested_pause.json), [실제 종료 점검](../reports/lossstudy_allframes_20261004_183750/pause_verification.json)을 남겼으며 자동 재개는 없습니다. 마지막 미완료 클립만 별도 경계 중단 래퍼로 다시 계산했고 provenance에 고정한 수치 코드·설정·manifest·이미지는 유지했습니다. 원래 드라이버의 `campaign_execution.json`은 중단 전 상태가 남아 있으므로 현재 실행 상태로 사용하지 않습니다. 전체 48조건 감사와 최종 분석은 실행하지 않았습니다. 대용량 입력·교란·예측 배열과 상세 실행 artifact는 원래 로컬 `runs/`에 보관하고, GitHub에는 `reports/`의 작은 상태 JSON과 지표 CSV만 포함합니다. 아래 다섯 목적 실행 명령은 원래 계획을 재현할 때 쓰는 절차입니다.
+
+해당 실행에 사용한 [중단 래퍼](../scripts/stop_after_tracking3d.py)와 [CPU 제어 테스트](../tests/test_loss_boundary_stop.py)를 함께 보관합니다. 래퍼는 `lossstudy_allframes_20261004_183750`의 기존 로컬 결과와 원래 서명이 일치하는 재개에만 사용하는 코드이며, 다음 로스의 시작 이벤트를 기록하기 전에 차단합니다. 테스트는 10개와 11개 하위 검사를 통과했습니다.
+
 사용자의 전체 프레임 요청에 맞춰 `configs/loss_components_8clips_allframes.json`과 같은 이름의 manifest를 사용합니다. 각 클립의 원본 0~127번을 모두 공격·평가합니다. 다섯 목적은 같은 8클립·GT·초기 noise·epsilon=4/255·PGD-20을 공유합니다. 원본 temporal field 길이를 NPY header에서 검사하고, 128개가 전부 로드되지 않으면 실행을 중단합니다. 64프레임 사전 측정은 별도 기록으로 유지합니다.
 
 고정 RoPE/위치/GT cache, CPU shape, 프레임별 VJP와 묶음 검증을 사용하며 모델 weights와 FP32 정책은 같습니다. RTX 5080의 동일 프로세스 원본/개선 교차 측정에서 128프레임 joint loss gradient는 중앙값 44.62초에서 38.08초로 줄었습니다(14.65%). 예측값과 로스는 같고 RGB gradient 차이는 측정된 CUDA 반복 오차 한도 안입니다. 이 수치는 PGD 한 단계에 해당하는 계산이며 저장·지표 계산 시간은 별도입니다. 약 2시간/목적의 예상은 실제 완료 시간으로 대체해야 합니다.

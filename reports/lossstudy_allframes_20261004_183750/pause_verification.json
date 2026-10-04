@@ -1,0 +1,32 @@
+{
+  "status": "paused",
+  "verified_at_utc": "2026-10-04T13:50:10.8671340Z",
+  "stop_after_objective": "tracking_3d",
+  "conditions_by_objective": {
+    "clean": 8,
+    "tracking_mse": 8,
+    "tracking_3d": 8
+  },
+  "completed_conditions": 24,
+  "original_expected_conditions": 48,
+  "full_campaign_completed": false,
+  "future_objective_start_events": 0,
+  "future_objective_results": 0,
+  "frames_per_clip": 128,
+  "pgd_steps": 20,
+  "saved_input_replay_records_passed": 24,
+  "final_all_frame_gradient_rows": 20,
+  "final_best_step": 19,
+  "container_name": "/st4rtrack-stop-after-tracking3d-20261004",
+  "container_id": "8722d8fee2529442dadfe5fd6ad36ead3d126fd299757b380083f26d2b5c15c9",
+  "container_status": "exited",
+  "container_exit_code": 0,
+  "finished_at_utc": "2026-10-04T13:49:19.027200721Z",
+  "restart_policy": "no",
+  "original_container_stopped": true,
+  "wrapper_control_tests_passed": 10,
+  "native_attack_seconds": 7795.572816193995,
+  "native_condition_wall_seconds": 8101.736068022996,
+  "timing_caveat": "Original tracking phase was interrupted in the incomplete last clip and resumed. The repeated objective_completed.wall_seconds describes only resume verification plus last clip, not all 8 clips. Sums here use final saved conditions and exclude discarded interrupted work.",
+  "verification_scope": "Actual condition/result/event metadata, final 20x128 gradient records and scalar SHA; original completed 23 condition artifacts were SHA checked by frozen resume. No independent full48 audit or extra GPU experiment was run."
+}
