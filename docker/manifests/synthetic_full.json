@@ -1,0 +1,726 @@
+{
+  "schema_version": 1,
+  "created_at_utc": "2026-10-02T04:47:20.096188+00:00",
+  "data_root": "data/worldtrack_release",
+  "datasets": [
+    "po_mini",
+    "ds_mini"
+  ],
+  "num_frames": 64,
+  "seed": 20261002,
+  "selection": "seeded_sample",
+  "paper_sequence_identity_verified": false,
+  "sequence_list": null,
+  "available_sequences": {
+    "po_mini": 50,
+    "ds_mini": 50
+  },
+  "entries": [
+    {
+      "dataset": "po_mini",
+      "sequence": "cab_e_3rd_1",
+      "path": "data/worldtrack_release/po_mini/cab_e_3rd_1.npz",
+      "bytes": 25199814,
+      "sha256": "00296fdc7c6091de430b18be2ef5a0d2da80db377e48f3476fc14505543ea0ad"
+    },
+    {
+      "dataset": "po_mini",
+      "sequence": "cab_e_3rd_6",
+      "path": "data/worldtrack_release/po_mini/cab_e_3rd_6.npz",
+      "bytes": 28687684,
+      "sha256": "e7ccb56d2bc32d2a18a0f451b2c3406a20de63655dbd9aee01c70c44dac7f1d9"
+    },
+    {
+      "dataset": "po_mini",
+      "sequence": "cab_e_3rd_12",
+      "path": "data/worldtrack_release/po_mini/cab_e_3rd_12.npz",
+      "bytes": 23565512,
+      "sha256": "20cf643d7e4bab46a9d3737560108fc45b03d6f31757466f78cc941ed497aa0e"
+    },
+    {
+      "dataset": "po_mini",
+      "sequence": "cab_e_3rd_13",
+      "path": "data/worldtrack_release/po_mini/cab_e_3rd_13.npz",
+      "bytes": 24119269,
+      "sha256": "42d544becff46958108f69c720c912f1acba16e1f5e1d5e1333b8f531eab2ef5"
+    },
+    {
+      "dataset": "po_mini",
+      "sequence": "cab_e_3rd_16",
+      "path": "data/worldtrack_release/po_mini/cab_e_3rd_16.npz",
+      "bytes": 25693270,
+      "sha256": "09473641d622795d4820595f6eee6b52752e8e0acc94a9c69ae9ccbb8ee2e0aa"
+    },
+    {
+      "dataset": "po_mini",
+      "sequence": "dancingroom1_3rd1_0",
+      "path": "data/worldtrack_release/po_mini/dancingroom1_3rd1_0.npz",
+      "bytes": 43599903,
+      "sha256": "4786eb75eba735cae5fbf2b6420b38c2dc728c36369c285de8cbf6d835683199"
+    },
+    {
+      "dataset": "po_mini",
+      "sequence": "dancingroom1_3rd1_3",
+      "path": "data/worldtrack_release/po_mini/dancingroom1_3rd1_3.npz",
+      "bytes": 43173446,
+      "sha256": "42ed819757395226dbd34d7cadcf8e8fd52654d377df897891fa7be5210c0b8f"
+    },
+    {
+      "dataset": "po_mini",
+      "sequence": "dancingroom1_3rd1_14",
+      "path": "data/worldtrack_release/po_mini/dancingroom1_3rd1_14.npz",
+      "bytes": 38631979,
+      "sha256": "f68699b589a382e8895132c63656c93b88d8c8f134bd1c4f1450adf35925b18f"
+    },
+    {
+      "dataset": "po_mini",
+      "sequence": "dancingroom1_3rd1_18",
+      "path": "data/worldtrack_release/po_mini/dancingroom1_3rd1_18.npz",
+      "bytes": 45201214,
+      "sha256": "0ed451bf3e644ea0b940597da85a8b47ea0a51016b9432d8a29bab9705b1ad71"
+    },
+    {
+      "dataset": "po_mini",
+      "sequence": "dancingroom1_3rd1_22",
+      "path": "data/worldtrack_release/po_mini/dancingroom1_3rd1_22.npz",
+      "bytes": 46563626,
+      "sha256": "9474d4283906c37925d527b9cc85f8e2d7c00fe4f47618c61fc4fa3119638cf3"
+    },
+    {
+      "dataset": "po_mini",
+      "sequence": "dancingroom1_3rd1_23",
+      "path": "data/worldtrack_release/po_mini/dancingroom1_3rd1_23.npz",
+      "bytes": 44421619,
+      "sha256": "ef65b5fee7e418186c38226d34290cca0c5fcc6b3e27cfe935fa8b9b06560bf7"
+    },
+    {
+      "dataset": "po_mini",
+      "sequence": "dancingroom1_3rd2_4",
+      "path": "data/worldtrack_release/po_mini/dancingroom1_3rd2_4.npz",
+      "bytes": 36561181,
+      "sha256": "75dbe756268730912a83a3157b1d070c46c769dd036cf30c011739976ed7fd7c"
+    },
+    {
+      "dataset": "po_mini",
+      "sequence": "dancingroom1_3rd2_5",
+      "path": "data/worldtrack_release/po_mini/dancingroom1_3rd2_5.npz",
+      "bytes": 38827858,
+      "sha256": "1886b81430f6000fcd7ca93245f761f3cdf6032dd0c7ecb622fc9e24405463aa"
+    },
+    {
+      "dataset": "po_mini",
+      "sequence": "dancingroom1_3rd2_11",
+      "path": "data/worldtrack_release/po_mini/dancingroom1_3rd2_11.npz",
+      "bytes": 39398530,
+      "sha256": "f2159ca71fbe5b00fa281f1e2bb3660c7df6d35d6cc54148d21dda09075eb622"
+    },
+    {
+      "dataset": "po_mini",
+      "sequence": "dancingroom1_3rd2_16",
+      "path": "data/worldtrack_release/po_mini/dancingroom1_3rd2_16.npz",
+      "bytes": 47965560,
+      "sha256": "6ac6f5726463b963bef9d69c273396fada2ba936a1ed26a7ec5fc9deac6de432"
+    },
+    {
+      "dataset": "po_mini",
+      "sequence": "dancingroom1_3rd2_17",
+      "path": "data/worldtrack_release/po_mini/dancingroom1_3rd2_17.npz",
+      "bytes": 41244454,
+      "sha256": "8663351316c3941774b6d0adde249eccbefaf3bdf2feda4a5af6b1e30016335f"
+    },
+    {
+      "dataset": "po_mini",
+      "sequence": "dancingroom1_3rd2_20",
+      "path": "data/worldtrack_release/po_mini/dancingroom1_3rd2_20.npz",
+      "bytes": 44387564,
+      "sha256": "a3d6107449ae8c166b568242b38c17836666ab2b5878f4c07e8cc323e6df6d44"
+    },
+    {
+      "dataset": "po_mini",
+      "sequence": "dancingroom1_3rd2_24",
+      "path": "data/worldtrack_release/po_mini/dancingroom1_3rd2_24.npz",
+      "bytes": 44738838,
+      "sha256": "dbccacc74cac7988d6ac430a18ef620960530273b9d3707448323e48155323f8"
+    },
+    {
+      "dataset": "po_mini",
+      "sequence": "dancingroom1_3rd_0",
+      "path": "data/worldtrack_release/po_mini/dancingroom1_3rd_0.npz",
+      "bytes": 42286502,
+      "sha256": "5cbabf00954eb79276ba0157f9827f8d2a65254c62dd5bc8866ca3659fa3e0f2"
+    },
+    {
+      "dataset": "po_mini",
+      "sequence": "dancingroom1_3rd_1",
+      "path": "data/worldtrack_release/po_mini/dancingroom1_3rd_1.npz",
+      "bytes": 43038817,
+      "sha256": "f38e71ee4ef5a06d541bb96311b53e8725d893a8b7f8abd2a96ddb8d7450f344"
+    },
+    {
+      "dataset": "po_mini",
+      "sequence": "dancingroom1_3rd_2",
+      "path": "data/worldtrack_release/po_mini/dancingroom1_3rd_2.npz",
+      "bytes": 42351267,
+      "sha256": "6d19b7792272afaded60846d721cc244a6bc13bfc615c3943187d8c044669812"
+    },
+    {
+      "dataset": "po_mini",
+      "sequence": "dancingroom1_3rd_5",
+      "path": "data/worldtrack_release/po_mini/dancingroom1_3rd_5.npz",
+      "bytes": 42234972,
+      "sha256": "ff888035a39b5651296cf03fd7e753c1e71667af6a43d3284aa433f7aa0468eb"
+    },
+    {
+      "dataset": "po_mini",
+      "sequence": "dancingroom1_3rd_7",
+      "path": "data/worldtrack_release/po_mini/dancingroom1_3rd_7.npz",
+      "bytes": 42931040,
+      "sha256": "d8c6bcb1259c3b433496cfc20fa3cd67409090a23b9db0a03bf92dc9906c867e"
+    },
+    {
+      "dataset": "po_mini",
+      "sequence": "dancingroom1_3rd_8",
+      "path": "data/worldtrack_release/po_mini/dancingroom1_3rd_8.npz",
+      "bytes": 42053787,
+      "sha256": "d0afd11f3285312b99c221d32d87bbe39d867ab4f7ba1b8a072594cf3ede632b"
+    },
+    {
+      "dataset": "po_mini",
+      "sequence": "dancingroom1_3rd_9",
+      "path": "data/worldtrack_release/po_mini/dancingroom1_3rd_9.npz",
+      "bytes": 42778892,
+      "sha256": "6c73925027415850f7b19f695b642dc308ecdf1ec9cf1f02a0b4800ddf0f9465"
+    },
+    {
+      "dataset": "po_mini",
+      "sequence": "dancingroom1_3rd_10",
+      "path": "data/worldtrack_release/po_mini/dancingroom1_3rd_10.npz",
+      "bytes": 42190898,
+      "sha256": "cf7e23b8b90d1623a8529965ca01198145424c7b8681d517ce6f1b7921ba04a1"
+    },
+    {
+      "dataset": "po_mini",
+      "sequence": "dancingroom1_3rd_16",
+      "path": "data/worldtrack_release/po_mini/dancingroom1_3rd_16.npz",
+      "bytes": 42444952,
+      "sha256": "3a81735fa3a13021cb22bc7a1f48df6a2f24c62924114abbed964fb97b30186d"
+    },
+    {
+      "dataset": "po_mini",
+      "sequence": "dancingroom1_3rd_22",
+      "path": "data/worldtrack_release/po_mini/dancingroom1_3rd_22.npz",
+      "bytes": 42707649,
+      "sha256": "9765c6753b5e0c32b79bd3d0d9c474a52687abb8ac569c3a1f76f86ee0b771a0"
+    },
+    {
+      "dataset": "po_mini",
+      "sequence": "dancingroom1_3rd_26",
+      "path": "data/worldtrack_release/po_mini/dancingroom1_3rd_26.npz",
+      "bytes": 41944433,
+      "sha256": "7bb688fb2a0949caa79eedc64d2cf57357f15b6b5a54a219c71d7ae82270bc51"
+    },
+    {
+      "dataset": "po_mini",
+      "sequence": "dancingroom1_3rd_30",
+      "path": "data/worldtrack_release/po_mini/dancingroom1_3rd_30.npz",
+      "bytes": 42095492,
+      "sha256": "1a3fc5f5eefd7be7c87618c1ed97c7b526afa62ccaaa899fa333b3027bf69819"
+    },
+    {
+      "dataset": "po_mini",
+      "sequence": "dancingroom1_3rd_31",
+      "path": "data/worldtrack_release/po_mini/dancingroom1_3rd_31.npz",
+      "bytes": 42784302,
+      "sha256": "3752cb90a35a5dec7ef974117ba97714e0f927827493007cd42eda912b9063cb"
+    },
+    {
+      "dataset": "po_mini",
+      "sequence": "dancingroom1_3rd_32",
+      "path": "data/worldtrack_release/po_mini/dancingroom1_3rd_32.npz",
+      "bytes": 42783184,
+      "sha256": "ea62cd496f43f5b25dbee3b1d140700037597ab8b95f5a3c42fc541e14eaded9"
+    },
+    {
+      "dataset": "po_mini",
+      "sequence": "egobody_egocentric_1",
+      "path": "data/worldtrack_release/po_mini/egobody_egocentric_1.npz",
+      "bytes": 15267766,
+      "sha256": "625740a3d5792e56ee02e1d60c6edccacc9be61a5a03fec7017bd2ae2716357e"
+    },
+    {
+      "dataset": "po_mini",
+      "sequence": "egobody_egocentric_4",
+      "path": "data/worldtrack_release/po_mini/egobody_egocentric_4.npz",
+      "bytes": 16413174,
+      "sha256": "73285332ae232e65fed50301bd1556ef957330f308b31b5ad95c03216e66f30a"
+    },
+    {
+      "dataset": "po_mini",
+      "sequence": "egobody_egocentric_7",
+      "path": "data/worldtrack_release/po_mini/egobody_egocentric_7.npz",
+      "bytes": 15875070,
+      "sha256": "dc5e006196f68b107ff584976c1050ab55de89a6888bc0ba94301a3d55dc61b4"
+    },
+    {
+      "dataset": "po_mini",
+      "sequence": "seminar_g110_0315_3rd_1",
+      "path": "data/worldtrack_release/po_mini/seminar_g110_0315_3rd_1.npz",
+      "bytes": 24577966,
+      "sha256": "4a3759401ca7f9cb434f5470ddc3917ca8ba244b7a6b45c95e805f5a9f9f7a7e"
+    },
+    {
+      "dataset": "po_mini",
+      "sequence": "seminar_g110_0315_3rd_4",
+      "path": "data/worldtrack_release/po_mini/seminar_g110_0315_3rd_4.npz",
+      "bytes": 24435456,
+      "sha256": "b765dad8fbdabfab86763f389d9593273414372591aa26124dcedb8898fd33a8"
+    },
+    {
+      "dataset": "po_mini",
+      "sequence": "seminar_g110_0315_3rd_8",
+      "path": "data/worldtrack_release/po_mini/seminar_g110_0315_3rd_8.npz",
+      "bytes": 26896644,
+      "sha256": "3b961af50fa4c43a3d02b670b24a03db5297627533924a8b3104180285efc57d"
+    },
+    {
+      "dataset": "po_mini",
+      "sequence": "seminar_g110_0315_3rd_12",
+      "path": "data/worldtrack_release/po_mini/seminar_g110_0315_3rd_12.npz",
+      "bytes": 25055839,
+      "sha256": "0775a91b22bf69f0e7234bc0187cac0b34319600a3f0fb9a17b63394318e8058"
+    },
+    {
+      "dataset": "po_mini",
+      "sequence": "seminar_g110_0315_ego1_0",
+      "path": "data/worldtrack_release/po_mini/seminar_g110_0315_ego1_0.npz",
+      "bytes": 19254253,
+      "sha256": "ab2fb1670cad361ae7768777bb8c03ae5ab40c89d8d18e1922864d8108c4b287"
+    },
+    {
+      "dataset": "po_mini",
+      "sequence": "seminar_g110_0315_ego1_2",
+      "path": "data/worldtrack_release/po_mini/seminar_g110_0315_ego1_2.npz",
+      "bytes": 15259024,
+      "sha256": "8674aa31c4d9be5856da33bb8dc57f1f698b8cd6ec1be326135014ebe7b45dfd"
+    },
+    {
+      "dataset": "po_mini",
+      "sequence": "seminar_g110_0315_ego1_9",
+      "path": "data/worldtrack_release/po_mini/seminar_g110_0315_ego1_9.npz",
+      "bytes": 16992149,
+      "sha256": "262bf5e01fae96978ba92f6cd6f82e2882d33a4087954cdaaf0c7f025c6cd14f"
+    },
+    {
+      "dataset": "po_mini",
+      "sequence": "seminar_g110_0315_ego1_12",
+      "path": "data/worldtrack_release/po_mini/seminar_g110_0315_ego1_12.npz",
+      "bytes": 21790708,
+      "sha256": "b4553c5e8783c977fa3dc5dad5347e9ff65cb87b424b88569f6a240a8644d72c"
+    },
+    {
+      "dataset": "po_mini",
+      "sequence": "seminar_g110_0315_ego1_14",
+      "path": "data/worldtrack_release/po_mini/seminar_g110_0315_ego1_14.npz",
+      "bytes": 14587518,
+      "sha256": "f2fec0ed9d103d530e600a8f32946361b0e7aaad907ad55466881f87bd44cc89"
+    },
+    {
+      "dataset": "po_mini",
+      "sequence": "seminar_g110_0315_ego1_15",
+      "path": "data/worldtrack_release/po_mini/seminar_g110_0315_ego1_15.npz",
+      "bytes": 14836952,
+      "sha256": "699d21daf5b60dfa8e23abc35d51a87a01eff8a8698a6ab169c1be6813d66dc6"
+    },
+    {
+      "dataset": "po_mini",
+      "sequence": "seminar_g110_0315_ego1_18",
+      "path": "data/worldtrack_release/po_mini/seminar_g110_0315_ego1_18.npz",
+      "bytes": 19748674,
+      "sha256": "07c8133ba39b3f6de1c8207f15663b39e5e0626550f95be5039e63d056cccdf6"
+    },
+    {
+      "dataset": "po_mini",
+      "sequence": "seminar_g110_0315_ego2_2",
+      "path": "data/worldtrack_release/po_mini/seminar_g110_0315_ego2_2.npz",
+      "bytes": 39911177,
+      "sha256": "125fd3e41370f8c89631d2f997a7ee52f60b54bf337e42b54c25265ca12d41db"
+    },
+    {
+      "dataset": "po_mini",
+      "sequence": "seminar_g110_0315_ego2_3",
+      "path": "data/worldtrack_release/po_mini/seminar_g110_0315_ego2_3.npz",
+      "bytes": 37424163,
+      "sha256": "677086b367ec8f237f7616262d064a04ed087e04c35ac30e59faa43c61a2b5d7"
+    },
+    {
+      "dataset": "po_mini",
+      "sequence": "seminar_g110_0315_ego2_10",
+      "path": "data/worldtrack_release/po_mini/seminar_g110_0315_ego2_10.npz",
+      "bytes": 38519147,
+      "sha256": "3fa7945431b645c2c9ce826ffdbb334ef62cc4418bc7b6f41da10c75b1c57b5a"
+    },
+    {
+      "dataset": "po_mini",
+      "sequence": "seminar_g110_0315_ego2_17",
+      "path": "data/worldtrack_release/po_mini/seminar_g110_0315_ego2_17.npz",
+      "bytes": 31289329,
+      "sha256": "7945db7c5ba73771c9d53f160e638b596890b2661ab1582dffee1ca5e0d36701"
+    },
+    {
+      "dataset": "ds_mini",
+      "sequence": "01f258-3_obj_source_left_6",
+      "path": "data/worldtrack_release/ds_mini/01f258-3_obj_source_left_6.npz",
+      "bytes": 51410340,
+      "sha256": "3ab179266e2a602498ff5421e53b76f105f0310a73b3dfdd08d7827e71633ec7"
+    },
+    {
+      "dataset": "ds_mini",
+      "sequence": "3c8664-3_obj_source_left_0",
+      "path": "data/worldtrack_release/ds_mini/3c8664-3_obj_source_left_0.npz",
+      "bytes": 60246961,
+      "sha256": "7310eef95aee99a88280e57be0d391fc2950dc4b7225c099183fa69adc47fd9e"
+    },
+    {
+      "dataset": "ds_mini",
+      "sequence": "3c8664-3_obj_source_left_3",
+      "path": "data/worldtrack_release/ds_mini/3c8664-3_obj_source_left_3.npz",
+      "bytes": 56021355,
+      "sha256": "8ba16b79353044cbbf6222bee0118a955aa4e050cafc7f2b480c50e6525039d7"
+    },
+    {
+      "dataset": "ds_mini",
+      "sequence": "3c8664-3_obj_source_left_6",
+      "path": "data/worldtrack_release/ds_mini/3c8664-3_obj_source_left_6.npz",
+      "bytes": 55547184,
+      "sha256": "fe66f7cfdc6a0ec19004bd12bd6d5a35ff2ccefe47f1a8b11edc55fbac78195e"
+    },
+    {
+      "dataset": "ds_mini",
+      "sequence": "5a0677-3_obj_source_left_0",
+      "path": "data/worldtrack_release/ds_mini/5a0677-3_obj_source_left_0.npz",
+      "bytes": 72757769,
+      "sha256": "eeb03504dda754c3f32794b621d844f055ef543f4ba5225b1a481abd1f34d908"
+    },
+    {
+      "dataset": "ds_mini",
+      "sequence": "5a0677-3_obj_source_left_1",
+      "path": "data/worldtrack_release/ds_mini/5a0677-3_obj_source_left_1.npz",
+      "bytes": 66777354,
+      "sha256": "91080cde46910b64f4d9bad0d498c4945aaa6a7eab9a8152fb44fe3dffc099dd"
+    },
+    {
+      "dataset": "ds_mini",
+      "sequence": "5a0677-3_obj_source_left_4",
+      "path": "data/worldtrack_release/ds_mini/5a0677-3_obj_source_left_4.npz",
+      "bytes": 67922819,
+      "sha256": "f474d73a96c4ca22af770e2d38f89c0617712a9cc7e24cdbff092c4f99001ced"
+    },
+    {
+      "dataset": "ds_mini",
+      "sequence": "6fae75-3_obj_source_left_0",
+      "path": "data/worldtrack_release/ds_mini/6fae75-3_obj_source_left_0.npz",
+      "bytes": 67955288,
+      "sha256": "6e4bde185846aa58e4ce582eda963981de6bb750c44482283a8b1b3be6db468e"
+    },
+    {
+      "dataset": "ds_mini",
+      "sequence": "6fae75-3_obj_source_left_1",
+      "path": "data/worldtrack_release/ds_mini/6fae75-3_obj_source_left_1.npz",
+      "bytes": 69778175,
+      "sha256": "f908d64c936496cc1487f38ec6d1767c8497c2a90a1c9ef5dd8fa5a56ad6569c"
+    },
+    {
+      "dataset": "ds_mini",
+      "sequence": "9c43b3-3_obj_source_left_1",
+      "path": "data/worldtrack_release/ds_mini/9c43b3-3_obj_source_left_1.npz",
+      "bytes": 69279467,
+      "sha256": "11d929b7e53b5af21f1a8ffef54515af788e2862b21c51de85a0ccae2aeef308"
+    },
+    {
+      "dataset": "ds_mini",
+      "sequence": "9c43b3-3_obj_source_left_3",
+      "path": "data/worldtrack_release/ds_mini/9c43b3-3_obj_source_left_3.npz",
+      "bytes": 57416846,
+      "sha256": "3b22401c162ad450e38acd67968f5b1cd4f6d5366bd176ba1c2f066672cdf754"
+    },
+    {
+      "dataset": "ds_mini",
+      "sequence": "9c43b3-3_obj_source_left_6",
+      "path": "data/worldtrack_release/ds_mini/9c43b3-3_obj_source_left_6.npz",
+      "bytes": 56701627,
+      "sha256": "591b7d8e21770aeacf118beca24b1f34e1675726fbb78c1e1b5789170d910d33"
+    },
+    {
+      "dataset": "ds_mini",
+      "sequence": "26b966-3_obj_source_left_3",
+      "path": "data/worldtrack_release/ds_mini/26b966-3_obj_source_left_3.npz",
+      "bytes": 55865519,
+      "sha256": "07ee69c2aa7688ef2c337a83333fba245e2f5954f01ed0a8981c73916392236e"
+    },
+    {
+      "dataset": "ds_mini",
+      "sequence": "029beb-3_obj_source_left_1",
+      "path": "data/worldtrack_release/ds_mini/029beb-3_obj_source_left_1.npz",
+      "bytes": 49534899,
+      "sha256": "b99e6345807025c22f7a086d49985ea930b192e415c33ae3a8cfc95ef3940b8e"
+    },
+    {
+      "dataset": "ds_mini",
+      "sequence": "029beb-3_obj_source_left_6",
+      "path": "data/worldtrack_release/ds_mini/029beb-3_obj_source_left_6.npz",
+      "bytes": 46013320,
+      "sha256": "63c71670df064a5c8c2bd7ffa9e00e78c19accac42c38234328d411b155c96a7"
+    },
+    {
+      "dataset": "ds_mini",
+      "sequence": "87f245-3_obj_source_left_2",
+      "path": "data/worldtrack_release/ds_mini/87f245-3_obj_source_left_2.npz",
+      "bytes": 59261617,
+      "sha256": "1009cafe5005940712e6edfb55fa968f1877de2dbe7f03c769865066fbd9d999"
+    },
+    {
+      "dataset": "ds_mini",
+      "sequence": "90ac3c-3_obj_source_left_0",
+      "path": "data/worldtrack_release/ds_mini/90ac3c-3_obj_source_left_0.npz",
+      "bytes": 51969756,
+      "sha256": "9c771f2de4c96f8f4b849e1be3a9af5e3a3bc7bf2f2f1afb3c96b5a475fc6e11"
+    },
+    {
+      "dataset": "ds_mini",
+      "sequence": "90ac3c-3_obj_source_left_2",
+      "path": "data/worldtrack_release/ds_mini/90ac3c-3_obj_source_left_2.npz",
+      "bytes": 49175195,
+      "sha256": "18e59e9fd4a8c461285c2cc55898ac60f25b1fb12b054d7ede95e03d82d589b4"
+    },
+    {
+      "dataset": "ds_mini",
+      "sequence": "90ac3c-3_obj_source_left_4",
+      "path": "data/worldtrack_release/ds_mini/90ac3c-3_obj_source_left_4.npz",
+      "bytes": 54662653,
+      "sha256": "3d224f6831a2b0e38fe158f6de508fafc50550f5d70ccba34e9298f0d6e11847"
+    },
+    {
+      "dataset": "ds_mini",
+      "sequence": "3592f1-3_obj_source_left_2",
+      "path": "data/worldtrack_release/ds_mini/3592f1-3_obj_source_left_2.npz",
+      "bytes": 45321258,
+      "sha256": "7327cde14e4a60bc1ebadc76d54bf5ef59bc896446a828eaf3ddb2f791d1c77d"
+    },
+    {
+      "dataset": "ds_mini",
+      "sequence": "3592f1-3_obj_source_left_3",
+      "path": "data/worldtrack_release/ds_mini/3592f1-3_obj_source_left_3.npz",
+      "bytes": 48424934,
+      "sha256": "a9a8ab6193eb496942fe2651283ea188aae50aa912ac66ff485556d0eeebec1a"
+    },
+    {
+      "dataset": "ds_mini",
+      "sequence": "5894d0-3_obj_source_left_0",
+      "path": "data/worldtrack_release/ds_mini/5894d0-3_obj_source_left_0.npz",
+      "bytes": 60014834,
+      "sha256": "0261b7f5aa5ea5b9166534fa8f8dfe23675aa92d50e0b1cb802b62d7f08074d0"
+    },
+    {
+      "dataset": "ds_mini",
+      "sequence": "5894d0-3_obj_source_left_1",
+      "path": "data/worldtrack_release/ds_mini/5894d0-3_obj_source_left_1.npz",
+      "bytes": 60385244,
+      "sha256": "de9211090d3de92a89de8afe2f98aa792218b6b2f7f915516d8f22c2a1220bdc"
+    },
+    {
+      "dataset": "ds_mini",
+      "sequence": "5894d0-3_obj_source_left_3",
+      "path": "data/worldtrack_release/ds_mini/5894d0-3_obj_source_left_3.npz",
+      "bytes": 59637810,
+      "sha256": "9947a271be7546fb55a9c46fadca49c9634269ecfc05bbbedef8b25b55f48f0f"
+    },
+    {
+      "dataset": "ds_mini",
+      "sequence": "5894d0-3_obj_source_left_6",
+      "path": "data/worldtrack_release/ds_mini/5894d0-3_obj_source_left_6.npz",
+      "bytes": 59893883,
+      "sha256": "750605996f00240816a1c32fe6f9251ad6ec1f6d016b2409019011f8580de558"
+    },
+    {
+      "dataset": "ds_mini",
+      "sequence": "423875-3_obj_source_left_0",
+      "path": "data/worldtrack_release/ds_mini/423875-3_obj_source_left_0.npz",
+      "bytes": 64609974,
+      "sha256": "f92865651ef6529a9de5d382c1a18b3ca341467f90071cb032e175633fb8ac62"
+    },
+    {
+      "dataset": "ds_mini",
+      "sequence": "423875-3_obj_source_left_5",
+      "path": "data/worldtrack_release/ds_mini/423875-3_obj_source_left_5.npz",
+      "bytes": 69361954,
+      "sha256": "a05ad57027d3aae36279712b938c6f2f38caf80bebea4f902bf192eb785eb071"
+    },
+    {
+      "dataset": "ds_mini",
+      "sequence": "a16a72-3_obj_source_left_0",
+      "path": "data/worldtrack_release/ds_mini/a16a72-3_obj_source_left_0.npz",
+      "bytes": 46909235,
+      "sha256": "2031065cc0602c3dde130667a1bc7ee26e49f33fd592604ac07af216d16ae3b0"
+    },
+    {
+      "dataset": "ds_mini",
+      "sequence": "a16a72-3_obj_source_left_3",
+      "path": "data/worldtrack_release/ds_mini/a16a72-3_obj_source_left_3.npz",
+      "bytes": 41321282,
+      "sha256": "9f43b80ef90fe8bec3c4c798fca1dd2c8655cbb17a0a854eda531d5092e07214"
+    },
+    {
+      "dataset": "ds_mini",
+      "sequence": "a16a72-3_obj_source_left_6",
+      "path": "data/worldtrack_release/ds_mini/a16a72-3_obj_source_left_6.npz",
+      "bytes": 47755457,
+      "sha256": "8918a5d40820c54cafa25bb6c6bca7956d5ebb9ae776e217b55659c6da757b70"
+    },
+    {
+      "dataset": "ds_mini",
+      "sequence": "b49cb2-3_obj_source_left_0",
+      "path": "data/worldtrack_release/ds_mini/b49cb2-3_obj_source_left_0.npz",
+      "bytes": 67819560,
+      "sha256": "40929047300d7ebfeb5f2ff5adbcd13fa107482492936e194a59c750593b024d"
+    },
+    {
+      "dataset": "ds_mini",
+      "sequence": "b49cb2-3_obj_source_left_3",
+      "path": "data/worldtrack_release/ds_mini/b49cb2-3_obj_source_left_3.npz",
+      "bytes": 75980783,
+      "sha256": "947351f4b954f663423f96ebbb50388d6a70edc15af970b81badb971db817edd"
+    },
+    {
+      "dataset": "ds_mini",
+      "sequence": "b49cb2-3_obj_source_left_4",
+      "path": "data/worldtrack_release/ds_mini/b49cb2-3_obj_source_left_4.npz",
+      "bytes": 73143339,
+      "sha256": "c422afbadb90a712b3fb22d5a9e5622a52504ea0a55813fe7770d96bddcca01b"
+    },
+    {
+      "dataset": "ds_mini",
+      "sequence": "ba3451-3_obj_source_left_0",
+      "path": "data/worldtrack_release/ds_mini/ba3451-3_obj_source_left_0.npz",
+      "bytes": 66716209,
+      "sha256": "6d2022417cd75669422e37e9e22250330c36f6ec34311f167e0c0d43b1590cef"
+    },
+    {
+      "dataset": "ds_mini",
+      "sequence": "ba3451-3_obj_source_left_1",
+      "path": "data/worldtrack_release/ds_mini/ba3451-3_obj_source_left_1.npz",
+      "bytes": 68761464,
+      "sha256": "34342d893bdb25ec5c8bef824ef4838eab2d367f0ee59608dcc3c38a0c7472e3"
+    },
+    {
+      "dataset": "ds_mini",
+      "sequence": "ba3451-3_obj_source_left_5",
+      "path": "data/worldtrack_release/ds_mini/ba3451-3_obj_source_left_5.npz",
+      "bytes": 65843740,
+      "sha256": "a96f0ef5db8b38c51809247701c6538b75c6c55e43cd83c8d912220da14bb459"
+    },
+    {
+      "dataset": "ds_mini",
+      "sequence": "ba3451-3_obj_source_left_6",
+      "path": "data/worldtrack_release/ds_mini/ba3451-3_obj_source_left_6.npz",
+      "bytes": 68041676,
+      "sha256": "c6095ef082fdbe9ee89497c2cab36feb23722c9bf1e5a5498f062d8a8b0a6edb"
+    },
+    {
+      "dataset": "ds_mini",
+      "sequence": "bd1989-3_obj_source_left_1",
+      "path": "data/worldtrack_release/ds_mini/bd1989-3_obj_source_left_1.npz",
+      "bytes": 41253885,
+      "sha256": "63f8f46061222760c4989c32aad4d2f5686fb0db66a43d8649c64fda74f91722"
+    },
+    {
+      "dataset": "ds_mini",
+      "sequence": "bd1989-3_obj_source_left_2",
+      "path": "data/worldtrack_release/ds_mini/bd1989-3_obj_source_left_2.npz",
+      "bytes": 38533028,
+      "sha256": "b0ee3ebd291759e4b1ebc774153847001e75ea4ef9e130f35d7d7b2c6a489881"
+    },
+    {
+      "dataset": "ds_mini",
+      "sequence": "bd1989-3_obj_source_left_4",
+      "path": "data/worldtrack_release/ds_mini/bd1989-3_obj_source_left_4.npz",
+      "bytes": 41710207,
+      "sha256": "4de2a9572c06ce939697bff87ec8ed8d69ad0d8fd9a55ab64c4eee1463e0a722"
+    },
+    {
+      "dataset": "ds_mini",
+      "sequence": "bd1989-3_obj_source_left_6",
+      "path": "data/worldtrack_release/ds_mini/bd1989-3_obj_source_left_6.npz",
+      "bytes": 38695304,
+      "sha256": "a342c7caac0139754fcc675ef20f08aa1cae578723389d4939d818e1fcd1f355"
+    },
+    {
+      "dataset": "ds_mini",
+      "sequence": "cb2501-3_obj_source_left_4",
+      "path": "data/worldtrack_release/ds_mini/cb2501-3_obj_source_left_4.npz",
+      "bytes": 58440500,
+      "sha256": "fa8411d8e4ee40d95e740d82523af1b2aa28f5750a96faa42ed9b143f355b983"
+    },
+    {
+      "dataset": "ds_mini",
+      "sequence": "cc2896-3_obj_source_left_3",
+      "path": "data/worldtrack_release/ds_mini/cc2896-3_obj_source_left_3.npz",
+      "bytes": 60657202,
+      "sha256": "7a72e7a7887f9e3cb08fd762d2d5dfd03017a4aad5ac6a9afec925deb031cbed"
+    },
+    {
+      "dataset": "ds_mini",
+      "sequence": "e09bca-3_obj_source_left_2",
+      "path": "data/worldtrack_release/ds_mini/e09bca-3_obj_source_left_2.npz",
+      "bytes": 39503290,
+      "sha256": "b7d643787c50c513e93380398627a2ba41c64af751d6dee68cdcdca2611a5a0d"
+    },
+    {
+      "dataset": "ds_mini",
+      "sequence": "e09bca-3_obj_source_left_4",
+      "path": "data/worldtrack_release/ds_mini/e09bca-3_obj_source_left_4.npz",
+      "bytes": 46774525,
+      "sha256": "bd4fe74f3d8444eaaf82ae43368d746d1bbfde24a2702a0e90cb5624e3d0c2bc"
+    },
+    {
+      "dataset": "ds_mini",
+      "sequence": "e09bca-3_obj_source_left_5",
+      "path": "data/worldtrack_release/ds_mini/e09bca-3_obj_source_left_5.npz",
+      "bytes": 41808475,
+      "sha256": "9d7c7d96cc90a8bb3ccd62d0db995a19a0903351e34d21e1f1c08c15cd59ae6c"
+    },
+    {
+      "dataset": "ds_mini",
+      "sequence": "fec654-3_obj_source_left_1",
+      "path": "data/worldtrack_release/ds_mini/fec654-3_obj_source_left_1.npz",
+      "bytes": 60414279,
+      "sha256": "fd18ef56d85d6145f3a1adc5a973183fdfeb7178c9ae2b0bbec89379633dff3e"
+    },
+    {
+      "dataset": "ds_mini",
+      "sequence": "fec654-3_obj_source_left_3",
+      "path": "data/worldtrack_release/ds_mini/fec654-3_obj_source_left_3.npz",
+      "bytes": 57461322,
+      "sha256": "8d0b32d355fe9220507121171c9722f2706c1b106daf6524adfac4a37a32b285"
+    },
+    {
+      "dataset": "ds_mini",
+      "sequence": "fec654-3_obj_source_left_4",
+      "path": "data/worldtrack_release/ds_mini/fec654-3_obj_source_left_4.npz",
+      "bytes": 68964017,
+      "sha256": "184d23d10ae8cdea65a709e99b3c5b3010d92181cc90cc4fd9011845de59dc52"
+    },
+    {
+      "dataset": "ds_mini",
+      "sequence": "fec654-3_obj_source_left_5",
+      "path": "data/worldtrack_release/ds_mini/fec654-3_obj_source_left_5.npz",
+      "bytes": 70925230,
+      "sha256": "78caec9e80bbd2fe76cd4d1095bd11609ba8f411d4062dbc54af627ddb3ac2d6"
+    }
+  ],
+  "path_conversion": {
+    "source_manifest": "synthetic_full.json",
+    "source_sha256": "877b70c6284dfc1a5ff1f1f32ec5e304b30078c98dd34d3954c40f60c3a023c5",
+    "mode": "project_relative_posix",
+    "roster_and_file_hashes_preserved": true
+  }
+}

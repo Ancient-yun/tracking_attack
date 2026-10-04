@@ -1,0 +1,3 @@
+# Preserve the experiment source bytes; shell entry points require LF on Linux.
+* -text
+*.sh text eol=lf

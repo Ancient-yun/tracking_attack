@@ -1,0 +1,57 @@
+name: st4rtrack-pgd
+services:
+  experiment:
+    image: st4rtrack-pgd:torch2.7.1-cu128
+    build:
+      context: .
+      dockerfile: Dockerfile
+    platform: linux/amd64
+    working_dir: /workspace
+    init: true
+    restart: "no"
+    read_only: true
+    shm_size: "2gb"
+    tmpfs:
+      - /tmp:size=1g
+    environment:
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    volumes:
+      - type: bind
+        source: ./configs
+        target: /workspace/configs
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./docker/manifests
+        target: /workspace/docker/manifests
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./assets/checkpoints
+        target: /workspace/assets/checkpoints
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./data/worldtrack_release
+        target: /workspace/data/worldtrack_release
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./runs/docker
+        target: /workspace/runs/docker
+      - type: bind
+        source: ./.cache/docker
+        target: /workspace/.cache
+    # Both compose up and compose run use only the bounded smoke.
+    command: ["python", "scripts/docker_smoke.py", "--output", "runs/docker/smoke/report.json", "--timeout-seconds", "240"]

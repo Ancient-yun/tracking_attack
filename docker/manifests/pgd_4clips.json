@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "created_at_utc": "2026-10-04T07:57:08.659623+00:00",
+  "data_root": "data/worldtrack_release",
+  "datasets": [
+    "po_mini",
+    "ds_mini"
+  ],
+  "num_frames": 64,
+  "seed": 20261002,
+  "selection": "po_previous_validation_and_dr_seeded_sample",
+  "paper_sequence_identity_verified": false,
+  "sequence_list": null,
+  "available_sequences": {
+    "po_mini": 50,
+    "ds_mini": 50
+  },
+  "entries": [
+    {
+      "dataset": "po_mini",
+      "sequence": "cab_e_3rd_13",
+      "path": "data/worldtrack_release/po_mini/cab_e_3rd_13.npz",
+      "bytes": 24119269,
+      "sha256": "42d544becff46958108f69c720c912f1acba16e1f5e1d5e1333b8f531eab2ef5"
+    },
+    {
+      "dataset": "po_mini",
+      "sequence": "dancingroom1_3rd_7",
+      "path": "data/worldtrack_release/po_mini/dancingroom1_3rd_7.npz",
+      "bytes": 42931040,
+      "sha256": "d8c6bcb1259c3b433496cfc20fa3cd67409090a23b9db0a03bf92dc9906c867e"
+    },
+    {
+      "dataset": "ds_mini",
+      "sequence": "9c43b3-3_obj_source_left_3",
+      "path": "data/worldtrack_release/ds_mini/9c43b3-3_obj_source_left_3.npz",
+      "bytes": 57416846,
+      "sha256": "3b22401c162ad450e38acd67968f5b1cd4f6d5366bd176ba1c2f066672cdf754"
+    },
+    {
+      "dataset": "ds_mini",
+      "sequence": "e09bca-3_obj_source_left_2",
+      "path": "data/worldtrack_release/ds_mini/e09bca-3_obj_source_left_2.npz",
+      "bytes": 39503290,
+      "sha256": "b7d643787c50c513e93380398627a2ba41c64af751d6dee68cdcdca2611a5a0d"
+    }
+  ],
+  "selection_details": {
+    "purpose": "Four development clips for one measured PGD-20 run; not the full benchmark or a verified paper roster",
+    "po_rule": "Preserve the two sequences and their order from manifests/po_validation.json; extend from 16 to the first 64 frames",
+    "dr_rule": "random.Random(20261002).sample(dr_candidates, 2)",
+    "dr_candidate_order": "The 50 ds_mini entries in manifests/synthetic_full.json, in their existing listed order",
+    "python_version": "3.12.15",
+    "source_manifests": {
+      "manifests/po_validation.json": "c893a20d9ae432584c2c2221b9e6e13e20a0ba51b4aae61f1194d3a6d8610b6c",
+      "manifests/synthetic_full.json": "877b70c6284dfc1a5ff1f1f32ec5e304b30078c98dd34d3954c40f60c3a023c5"
+    },
+    "file_bytes_and_sha256_preserved": true,
+    "path_mode": "project_relative_posix"
+  }
+}

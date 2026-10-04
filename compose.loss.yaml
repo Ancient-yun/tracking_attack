@@ -1,0 +1,4 @@
+# Overlay only the image tag; the inherited command remains the bounded smoke.
+services:
+  experiment:
+    image: st4rtrack-pgd:loss-components-cu128

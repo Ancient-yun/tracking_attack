@@ -1,0 +1,25 @@
+{
+  "checkpoint": "assets/checkpoints/St4RTrack_Seqmode_reweightMax5.pth",
+  "num_frames": 64,
+  "image_size": 512,
+  "device": "cuda",
+  "objectives": [
+    "tracking_mse",
+    "tracking_3d",
+    "reconstruction_3d",
+    "confidence",
+    "joint_training"
+  ],
+  "epsilon_255": 4,
+  "steps": 20,
+  "step_size_fraction": 0.25,
+  "restarts": 1,
+  "seed": 20261002,
+  "alpha": 0.2,
+  "reweight_scale": 5,
+  "gradient_mode": "recompute",
+  "save_inputs": true,
+  "verify_saved_inputs": true,
+  "verify_official_clean": true,
+  "runtime_optimization": true
+}

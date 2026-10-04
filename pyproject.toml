@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "st4rtrack-pgd"
+version = "0.1.0"
+description = "Full-frame adversarial WorldTrack evaluation of the official St4RTrack model"
+requires-python = ">=3.10,<3.14"
+dependencies = ["numpy", "torch", "torchvision", "Pillow", "tqdm"]
+
+[project.optional-dependencies]
+test = ["pytest>=8"]
+
+[project.scripts]
+st4rtrack-manifest = "st4rtrack_pgd.make_manifest:main"
+st4rtrack-attack = "st4rtrack_pgd.run_attack:main"
+st4rtrack-evaluate = "st4rtrack_pgd.evaluate_attack:main"
+st4rtrack-validate = "st4rtrack_pgd.validate:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

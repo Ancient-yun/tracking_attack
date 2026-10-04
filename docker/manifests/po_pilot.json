@@ -1,0 +1,94 @@
+{
+  "schema_version": 1,
+  "created_at_utc": "2026-10-02T04:47:21.376010+00:00",
+  "data_root": "data/worldtrack_release",
+  "datasets": [
+    "po_mini"
+  ],
+  "num_frames": 64,
+  "seed": 20261002,
+  "selection": "seeded_sample",
+  "paper_sequence_identity_verified": false,
+  "sequence_list": null,
+  "available_sequences": {
+    "po_mini": 50
+  },
+  "entries": [
+    {
+      "dataset": "po_mini",
+      "sequence": "cab_e_3rd_16",
+      "path": "data/worldtrack_release/po_mini/cab_e_3rd_16.npz",
+      "bytes": 25693270,
+      "sha256": "09473641d622795d4820595f6eee6b52752e8e0acc94a9c69ae9ccbb8ee2e0aa"
+    },
+    {
+      "dataset": "po_mini",
+      "sequence": "dancingroom1_3rd1_3",
+      "path": "data/worldtrack_release/po_mini/dancingroom1_3rd1_3.npz",
+      "bytes": 43173446,
+      "sha256": "42ed819757395226dbd34d7cadcf8e8fd52654d377df897891fa7be5210c0b8f"
+    },
+    {
+      "dataset": "po_mini",
+      "sequence": "dancingroom1_3rd2_4",
+      "path": "data/worldtrack_release/po_mini/dancingroom1_3rd2_4.npz",
+      "bytes": 36561181,
+      "sha256": "75dbe756268730912a83a3157b1d070c46c769dd036cf30c011739976ed7fd7c"
+    },
+    {
+      "dataset": "po_mini",
+      "sequence": "dancingroom1_3rd_5",
+      "path": "data/worldtrack_release/po_mini/dancingroom1_3rd_5.npz",
+      "bytes": 42234972,
+      "sha256": "ff888035a39b5651296cf03fd7e753c1e71667af6a43d3284aa433f7aa0468eb"
+    },
+    {
+      "dataset": "po_mini",
+      "sequence": "egobody_egocentric_4",
+      "path": "data/worldtrack_release/po_mini/egobody_egocentric_4.npz",
+      "bytes": 16413174,
+      "sha256": "73285332ae232e65fed50301bd1556ef957330f308b31b5ad95c03216e66f30a"
+    },
+    {
+      "dataset": "po_mini",
+      "sequence": "egobody_egocentric_7",
+      "path": "data/worldtrack_release/po_mini/egobody_egocentric_7.npz",
+      "bytes": 15875070,
+      "sha256": "dc5e006196f68b107ff584976c1050ab55de89a6888bc0ba94301a3d55dc61b4"
+    },
+    {
+      "dataset": "po_mini",
+      "sequence": "seminar_g110_0315_3rd_8",
+      "path": "data/worldtrack_release/po_mini/seminar_g110_0315_3rd_8.npz",
+      "bytes": 26896644,
+      "sha256": "3b961af50fa4c43a3d02b670b24a03db5297627533924a8b3104180285efc57d"
+    },
+    {
+      "dataset": "po_mini",
+      "sequence": "seminar_g110_0315_ego1_9",
+      "path": "data/worldtrack_release/po_mini/seminar_g110_0315_ego1_9.npz",
+      "bytes": 16992149,
+      "sha256": "262bf5e01fae96978ba92f6cd6f82e2882d33a4087954cdaaf0c7f025c6cd14f"
+    },
+    {
+      "dataset": "po_mini",
+      "sequence": "seminar_g110_0315_ego1_18",
+      "path": "data/worldtrack_release/po_mini/seminar_g110_0315_ego1_18.npz",
+      "bytes": 19748674,
+      "sha256": "07c8133ba39b3f6de1c8207f15663b39e5e0626550f95be5039e63d056cccdf6"
+    },
+    {
+      "dataset": "po_mini",
+      "sequence": "seminar_g110_0315_ego2_3",
+      "path": "data/worldtrack_release/po_mini/seminar_g110_0315_ego2_3.npz",
+      "bytes": 37424163,
+      "sha256": "677086b367ec8f237f7616262d064a04ed087e04c35ac30e59faa43c61a2b5d7"
+    }
+  ],
+  "path_conversion": {
+    "source_manifest": "po_pilot.json",
+    "source_sha256": "3f0642bf8cd5230942fd07dfb5e6e84ee586ded956ee6a151503026798b64687",
+    "mode": "project_relative_posix",
+    "roster_and_file_hashes_preserved": true
+  }
+}

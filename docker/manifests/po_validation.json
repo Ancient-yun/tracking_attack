@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "created_at_utc": "2026-10-02T04:44:15.553348+00:00",
+  "data_root": "data/worldtrack_release",
+  "datasets": [
+    "po_mini"
+  ],
+  "num_frames": 16,
+  "seed": 20261002,
+  "selection": "seeded_sample",
+  "paper_sequence_identity_verified": false,
+  "sequence_list": null,
+  "available_sequences": {
+    "po_mini": 16
+  },
+  "entries": [
+    {
+      "dataset": "po_mini",
+      "sequence": "cab_e_3rd_13",
+      "path": "data/worldtrack_release/po_mini/cab_e_3rd_13.npz",
+      "bytes": 24119269,
+      "sha256": "42d544becff46958108f69c720c912f1acba16e1f5e1d5e1333b8f531eab2ef5"
+    },
+    {
+      "dataset": "po_mini",
+      "sequence": "dancingroom1_3rd_7",
+      "path": "data/worldtrack_release/po_mini/dancingroom1_3rd_7.npz",
+      "bytes": 42931040,
+      "sha256": "d8c6bcb1259c3b433496cfc20fa3cd67409090a23b9db0a03bf92dc9906c867e"
+    }
+  ],
+  "path_conversion": {
+    "source_manifest": "po_validation.json",
+    "source_sha256": "c893a20d9ae432584c2c2221b9e6e13e20a0ba51b4aae61f1194d3a6d8610b6c",
+    "mode": "project_relative_posix",
+    "roster_and_file_hashes_preserved": true
+  }
+}
