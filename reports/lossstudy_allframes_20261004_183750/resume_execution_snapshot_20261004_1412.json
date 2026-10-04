@@ -1,0 +1,18 @@
+{
+  "status": "running",
+  "started_at_utc": "2026-10-04T14:15:45.523143+00:00",
+  "user_requested_resume": true,
+  "historical_pause_record": "requested_pause.json",
+  "pause_superseded_by_user": true,
+  "completed_before_resume": 24,
+  "expected_conditions": 48,
+  "remaining_objectives": [
+    "reconstruction_3d",
+    "confidence",
+    "joint_training"
+  ],
+  "frames_per_clip": 128,
+  "clips_per_objective": 8,
+  "steps": 20,
+  "analyzer_sha256": "c867a873aaffa8086d3ca8c7eeb99cacc2ccbb6f522507a55012c0c6d3c4b9c4"
+}

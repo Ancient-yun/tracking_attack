@@ -1,6 +1,8 @@
 # St4RTrack 전체 프레임 PGD 실험
 
-**현재 상태(2026-10-04): 사용자의 요청으로 tracking 3D 로스까지 완료하고 중단했습니다.** Point Odyssey 4클립 + Dynamic Replica 4클립의 원본 128프레임 전체를 사용해 clean 8 + `tracking_mse` 8 + `tracking_3d` 8 = **24/48조건**을 완료했습니다. 공격은 PGD-20입니다. `reconstruction_3d`, `confidence`, `joint_training`은 시작하지 않았고 자동 재개도 없습니다. [중단 확인 기록](reports/lossstudy_allframes_20261004_183750/pause_verification.json)과 [부분 결과 요약](reports/lossstudy_allframes_20261004_183750/summary.json)을 공개합니다. 전체 48조건 감사와 최종 분석은 실행하지 않았습니다.
+**최근 실행 상태(2026-10-04 23:15 KST 재개 시점): 사용자의 요청으로 나머지 세 로스 실험을 재개했습니다.** `reconstruction_3d` → `confidence` → `joint_training` 순서로 각 8클립의 원본 128프레임 전체에 PGD-20을 적용합니다. 완료된 24조건은 hash를 검증한 뒤 건너뛰고, 같은 run·이미지·수치 소스·설정·manifest로 남은 24조건을 진행합니다. 이후 전체 48조건의 독립 artifact 감사와 강화된 분석을 자동 실행하도록 구성했습니다. [재개 실행 기록](reports/lossstudy_allframes_20261004_183750/resume_launch_20261004_1412.json)과 [재개 상태 snapshot](reports/lossstudy_allframes_20261004_183750/resume_execution_snapshot_20261004_1412.json)을 공개합니다. 이 기록은 재개 시점의 상태이며 전체 48조건 완료를 의미하지 않습니다.
+
+**이전 중단 시점 기록(2026-10-04 22:49 KST): 사용자의 요청으로 tracking 3D 로스까지 완료하고 중단했습니다.** Point Odyssey 4클립 + Dynamic Replica 4클립의 원본 128프레임 전체를 사용해 clean 8 + `tracking_mse` 8 + `tracking_3d` 8 = **24/48조건**을 완료했습니다. 공격은 PGD-20입니다. `reconstruction_3d`, `confidence`, `joint_training`은 시작하지 않았고 자동 재개도 없었습니다. [중단 확인 기록](reports/lossstudy_allframes_20261004_183750/pause_verification.json)과 [부분 결과 요약](reports/lossstudy_allframes_20261004_183750/summary.json)은 당시 snapshot입니다. 전체 48조건 감사와 최종 분석은 당시 실행하지 않았습니다.
 
 기본 계획은 **Point Odyssey 4클립 + Dynamic Replica 4클립, 각 원본 128프레임 전체, 다섯 목적함수별 PGD-20**입니다. 현재 설정과 전체 재현 절차는 [실험 재현 안내](docs/EXPERIMENT_REPRODUCTION.md), 손실 수식은 [loss 구조 설명](docs/loss_structure.md), Docker 명령은 [Docker 실행 안내](docker/README.md)를 참고하세요. 아래 16/64프레임 결과와 설정은 이전 검증 기록입니다.
 

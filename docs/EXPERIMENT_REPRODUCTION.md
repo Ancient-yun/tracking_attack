@@ -2,7 +2,9 @@
 
 작성일: 2026-10-04, Asia/Seoul. 기준 프로젝트: `C:\code\st4rtrack_pgd`.
 
-**현재 실행 상태:** 사용자의 요청으로 `tracking_3d` 로스까지 마치고 중단했다. 고정 8클립의 원본 128프레임 전체에서 clean 8 + `tracking_mse` 8 + `tracking_3d` 8 = **24/48조건**을 완료했으며 공격은 PGD-20이다. `reconstruction_3d`, `confidence`, `joint_training`은 시작하지 않았고 자동 재개도 없다. [중단 확인 기록](../reports/lossstudy_allframes_20261004_183750/pause_verification.json)과 [부분 결과 요약](../reports/lossstudy_allframes_20261004_183750/summary.json)을 참고한다. 전체 48조건 감사와 최종 분석은 실행하지 않았다. 아래 다섯 목적함수 실행 절차는 원래 전체 계획을 재현하는 안내이며 현재 실행을 재개하라는 지시가 아니다.
+**최근 실행 상태(2026-10-04 23:15 KST 재개 시점):** 사용자가 나머지 실험의 재개를 요청해 같은 run에서 `reconstruction_3d`, `confidence`, `joint_training`을 순서대로 진행하도록 시작했다. 각 목적은 고정 8클립·원본 128프레임 전체·PGD-20이다. 완료된 24조건은 hash를 검증해 건너뛰고 나머지 24조건을 진행하며, 원래 driver가 이후 전체 48조건 독립 artifact 감사와 분석을 자동 실행한다. 모델·공격 수치 소스·이미지·config·manifest는 유지했고 강화된 analyzer(`c867a873aaffa8086d3ca8c7eeb99cacc2ccbb6f522507a55012c0c6d3c4b9c4`)만 별도 snapshot을 읽기 전용으로 연결했다. [재개 실행 기록](../reports/lossstudy_allframes_20261004_183750/resume_launch_20261004_1412.json)과 [재개 상태 snapshot](../reports/lossstudy_allframes_20261004_183750/resume_execution_snapshot_20261004_1412.json)은 재개 시점의 증거이며 전체 48조건 완료를 뜻하지 않는다.
+
+**이전 중단 시점 기록(2026-10-04 22:49 KST):** 사용자의 요청으로 `tracking_3d` 로스까지 마치고 중단했다. 고정 8클립의 원본 128프레임 전체에서 clean 8 + `tracking_mse` 8 + `tracking_3d` 8 = **24/48조건**을 완료했으며 공격은 PGD-20이다. `reconstruction_3d`, `confidence`, `joint_training`은 당시 시작하지 않았고 자동 재개도 없었다. [중단 확인 기록](../reports/lossstudy_allframes_20261004_183750/pause_verification.json)과 [부분 결과 요약](../reports/lossstudy_allframes_20261004_183750/summary.json)은 그때의 snapshot이며 보존한다. 전체 48조건 감사와 최종 분석은 당시 실행하지 않았다. 아래 다섯 목적함수 실행 절차는 전체 계획을 다른 환경에서 재현하는 안내다.
 
 이 문서는 실제 본 실험의 설정 파일, 구현 코드, 실행 당시 `run.json`을 확인하여 작성했다. 다른 AI에게 이 문서와 실험 소스를 전달해 같은 실험을 실행하거나 별도로 구현할 수 있도록 데이터 선택, 손실 수식, 입력 gradient, 실행 명령, 검증 기준을 정리한다. **현재 기준은 PO 4클립 + DR 4클립, 각 클립의 원본 128프레임 전체, 다섯 목적함수별 PGD-20이다.** 이전 README에 있는 16/64프레임 검증과 14클립 설정은 과거 실행 범위다.
 
@@ -442,7 +444,7 @@ docker compose -f compose.yaml -f compose.loss.yaml run --rm --no-deps experimen
 
 ## 12. 실행 식별자, hash와 시간 기록
 
-이 문서가 참조한 본 실행은 다음과 같다. 작성 시 확인한 `campaign_execution.json` 상태는 `running`이며 전체 실험이 완료된 것으로 기록하지 않는다.
+이 문서가 참조한 최초 본 실행 식별자는 다음과 같다. 원래 `campaign_execution.json`의 중단 전 상태를 현재 실행 상태로 사용하지 않는다. 22:49 KST에 사용자 요청으로 중단한 뒤 23:15 KST에 `st4rtrack-remaining-losses-20261004`로 같은 run을 재개했다. 재개 container의 정확한 시작 시각은 `2026-10-04T14:15:44.720186573Z`이고, 현재 상태를 공개한 자료는 위 재개 실행 기록과 상태 snapshot이다. 전체 실험이 완료된 것으로 기록하지 않는다.
 
 ```text
 호스트 run: C:\code\st4rtrack_pgd\runs\docker\lossstudy_allframes_20261004_183750
