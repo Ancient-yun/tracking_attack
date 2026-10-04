@@ -2,6 +2,8 @@
 
 작성일: 2026-10-04. 대상 run: `lossstudy_allframes_20261004_183750`.
 
+추가 분석 설계 반영일: 2026-10-05. 보고서의 핵심은 **공격 목적을 나눴을 때 tracking과 reconstruction의 성능 손상이 함께 어떻게 달라지는가**다. 6.6절의 영향표·클립별 산점도·두 기하 목적의 직접 비교를 중심으로, 내부 진단과 같은 프레임의 영상을 연결한다.
+
 이 문서는 **실험이 끝난 뒤 저장 결과만 사용해 시각화와 한국어 HTML 보고서를 만드는 작업 지시서**다. 사용할 결과 파일, 기존 코드, 필요한 코드 수정, 성능 하락 계산식, 보고서 구성과 검증 기준을 정한다. 이 문서 자체가 최종 실험 결과는 아니다. 작성 당시 나머지 세 목적함수 실험이 실행 중이며, 최종 수치와 HTML은 아직 생성하지 않았다.
 
 현재 자동 파이프라인은 전체 실험 → artifact 감사 → JSON/Markdown 분석과 PNG 3개까지 수행한다. **HTML과 이번 결과에 맞는 정성 비교 영상은 별도 구현이 필요하다.** 아래에서 `신규 구현`으로 표시한 파일과 CLI는 제안하는 인터페이스이며 현재 존재하는 명령으로 취급하지 않는다.
@@ -39,6 +41,14 @@ tracking/reconstruction APD clean·attack·감소 %p·상대 감소율과
 EPE clean·attack·증가 m·배수를 계산해.
 전체8·PO4·DR4는 클립 동일 가중치로 집계하고 기존 paired bootstrap CI를 써.
 원본 128프레임 모두의 성능을 사용하고 시각화용 점 선택과 구분해.
+
+보고서의 핵심 분석은 6.6절을 따라 세 그림으로 만들어줘.
+1) 공격 목적×tracking/reconstruction 손상 영향표,
+2) 같은 클립의 두 성능 상대 APD 하락 산점도와 두 기하 공격의 연결선,
+3) tracking_3d와 reconstruction_3d 공격의 같은 클립 손상 차이 및 paired CI야.
+직접 비교의 CI는 원자료의 차이에서 새로 계산하고 기존 CI 두 개를 빼지 마.
+이 세 그림은 기존 분석 PNG에 없으므로 새 HTML builder의 CPU 분석으로 추가해.
+전체 영향표→클립별 손상 이동→직접 비교→내부 진단과 같은 프레임 영상 순서로 구성해.
 
 전체 성능 표, 8클립×5목적의 상세 결과, 그래프, RGB 차이,
 GT/clean/attack 추적, 프레임별 EPE, reconstruction 오차 지도,
@@ -373,6 +383,106 @@ PO4와 DR4에서는 각각 […]로 나타났다. 변화가 가장 큰/작은 �
 
 원래 활성 학습식은 confidence가 포함된 두 branch다. 다섯 공격은 이를 분해한 목적들과 MSE 대조군이다. 서로 다른 raw attack loss의 크기나 gradient norm으로 성능 손상 순위를 정하지 않는다. 본 실험은 **고정 모델의 입력 공격 민감성 비교**이며 loss 제거·재학습의 인과적 중요도, 전체 데이터셋 결과 또는 전역 최악 공격을 측정한 실험이 아니다.
 
+### 6.6 핵심 분석: 공격 목적별 tracking–reconstruction 손상
+
+**이 절은 보고서의 필수 중심 분석이다.** 다음 질문에 답한다.
+
+1. Tracking 기하 목적을 공격하면 tracking과 reconstruction은 각각 얼마나 손상되는가?
+2. Reconstruction 기하 목적을 공격하면 두 성능의 손상 양상이 어떻게 달라지는가?
+3. 각 목적이 자기 과제를 더 손상하는가, 아니면 한 목적이 양쪽 성능을 함께 더 손상하는가?
+4. Confidence 목적·joint 목적·MSE 대조 공격은 두 기하 목적과 어떤 양상을 보이는가?
+
+아래 세 그림과 직접 비교 JSON은 **신규 CPU 산출물**이다. 기존 `analyze_component_study.py`의 세 PNG만으로 구현됐다고 취급하지 않는다. 신규 `build_component_html_report.py` 또는 그 별도 CPU 보조 모듈에서 저장된 `paired_conditions`·`paired_aggregates`를 읽어 계산한다. 고정 분석기나 signed 공격 소스를 수정하지 않는다.
+
+#### 6.6.1 공격 목적 × 성능 손상 영향표
+
+다섯 목적을 고정 순서의 행으로, 두 과제의 APD 감소·EPE 증가를 열로 둔다. 기본은 전체8클립이며 PO4/DR4 탭도 제공한다.
+
+| 행: 공격 목적 | Tracking APD 감소 (%p) | Reconstruction APD 감소 (%p) | Tracking EPE 증가 (m) | Reconstruction EPE 증가 (m) |
+|---|---|---|---|---|
+| `tracking_mse` | 실제 paired 값 | 실제 paired 값 | 실제 paired 값 | 실제 paired 값 |
+| `tracking_3d` | 실제 paired 값 | 실제 paired 값 | 실제 paired 값 | 실제 paired 값 |
+| `reconstruction_3d` | 실제 paired 값 | 실제 paired 값 | 실제 paired 값 | 실제 paired 값 |
+| `confidence` | 실제 paired 값 | 실제 paired 값 | 실제 paired 값 | 실제 paired 값 |
+| `joint_training` | 실제 paired 값 | 실제 paired 값 | 실제 paired 값 | 실제 paired 값 |
+
+표의 `실제 paired 값`은 명세용 placeholder다. 납품 HTML에는 6.3절의 `paired_aggregates` 네 차분 키 및 각 `_clean`/`_attacked` 값으로 대체한다. 각 셀에는 차분·단위·기존 해당 지표 95% CI를 표시하고, clean/attack 수치는 옆 상세 표 또는 펼침 영역으로 제공한다. Support는 전체8·PO4·DR4다.
+
+그림명 제안은 `task_impact_matrix.png`다. APD 두 열과 EPE 두 열을 별도 패널로 나눈다. APD 패널은 두 과제에 같은 %p color scale, EPE 패널은 두 과제에 같은 m color scale을 쓰고, 각각0 중심의 부호를 보존한다. PO/DR 탭도 해당 단위에서 같은 범위를 공유한다. 기존 `component_changes_heatmap.png`의 열별 독립 정규화 색을 이 그림의 공통 척도처럼 재사용하지 않는다.
+
+두 기하 목적 행에서 **공격 목적의 과제 손상과 상대 과제 손상을 동시에 읽는 것**이 핵심이다. Confidence는 두 branch의 log-confidence 목적이며 세 번째 과제로 표시하지 않는다. 같은 %p 또는 m라도 두 과제의 GT 모집단·정렬·초기 성능이 다르므로 두 값을 빼서 물리적인 연결 강도나 인과적 coupling 계수를 만들지 않는다.
+
+#### 6.6.2 동일 클립의 두 성능 손상 산점도
+
+그림명 제안은 `cross_task_apd_scatter.png`다. 점 하나는 `(dataset, sequence, objective)` 하나이며 완성 범위에서 최대40점이다. 값은 `paired_conditions`에서 계산한다.
+
+```text
+x = 100 * tracking_apd_drop_pp / tracking_apd_drop_pp_clean
+y = 100 * reconstruction_apd_drop_pp / reconstruction_apd_drop_pp_clean
+```
+
+- x축은 tracking APD 상대 감소율(%), y축은 reconstruction APD 상대 감소율(%)이다.
+- 두 clean 분모가 각각 유한하며 `>1e-12`인 경우만 점을 그린다. N/A 점은 별도 표와 제외 수에 기록하고 `(0,0)`으로 대체하지 않는다.
+- 목적은 색, PO/DR은 점 모양으로 구분한다. 전체와 PO/DR 분할 화면을 같은 축 범위로 제공한다.
+- 같은 클립의 `tracking_3d` 점과 `reconstruction_3d` 점을 연결한다. 선 방향은 `tracking_3d → reconstruction_3d`로 고정하고 clip ID를 tooltip/legend에 둔다.
+- 연결선은 **공격 목적을 바꿀 때 같은 클립의 두 손상이 어떻게 이동하는지** 보여준다. PGD 시간 경로나 앞선 공격의 누적을 뜻하지 않는다.
+- 0 기준선을 표시하고 음수(성능 개선)를 그대로 그린다. 오른쪽 위는 두 APD 모두 감소, 오른쪽 아래는 tracking 감소/reconstruction 개선, 왼쪽 위는 반대, 왼쪽 아래는 둘 다 개선이다.
+- `y=x`를 추가하면 두 상대 감소율이 같다는 참고선이라고 적는다. 두 과제의 물리적 손상이 동일하거나 연결이 증명됐다는 선으로 해석하지 않는다.
+- 기본 산점도는 개별 클립 점을 보여준다. 평균 점을 추가하면 `클립별 상대 감소율의 평균`인지6.3절의 `평균 clean/attack 지표로 계산한 상대 감소율`인지 명시한다. 정의가 다른 평균을 같은 숫자로 연결하지 않는다.
+
+클립별 점과 연결선을 보여야 평균에서 숨겨지는 일관성·예외가 드러난다. 단순히40점을 한꺼번에 상관분석해 독립40표본처럼 검정하지 않는다. 같은8클립의 반복 목적과 두 데이터셋 구조를 유지한다.
+
+#### 6.6.3 두 기하 목적의 직접 paired 비교
+
+그림명 제안은 `geometry_attack_contrasts.png`다. 기하 목적 둘만 사전에 정한 주 비교로 삼는다. **차이의 방향은 모든 지표에서 `tracking_3d 공격 − reconstruction_3d 공격`으로 통일**한다.
+
+```text
+A = tracking_3d 공격
+B = reconstruction_3d 공격
+clip별 D_tracking_APD = tracking_apd_drop_pp(A) - tracking_apd_drop_pp(B)
+clip별 D_recon_APD    = reconstruction_apd_drop_pp(A) - reconstruction_apd_drop_pp(B)
+clip별 D_tracking_EPE = tracking_epe_increase_m(A) - tracking_epe_increase_m(B)
+clip별 D_recon_EPE    = reconstruction_epe_increase_m(A) - reconstruction_epe_increase_m(B)
+```
+
+`paired_conditions`를 `(dataset, sequence)`로 join한다. 두 공격의 identity·파생 seed·ε·steps와 공유 clean이 일치해야 한다. Seed는 paired 행에서, ε·steps·signature와 공유 clean은 검증된 원래 `result.json` 및 `run.json`에서 확인한다. 다른 클립의 행 순서나 평균값만으로 pair를 만들지 않는다. 완성 범위의 공통8클립·PO4/DR4를 확인하고, 누락/중복/다른 seed는 검증 오류로 처리한다.
+
+CI는 위 clip별 네 차분에서 새로 계산한다. 기존 `bootstrap_intervals`의 층별 paired 추출 방식을 참고하되 원래 분석기를 변경하지 않는다.
+
+```text
+1. 공통 PO4, DR4의 clip별 D 벡터를 고정 순서로 만든다.
+2. NumPy default_rng(seed=20261004)로 각 strata에서4클립을 복원 추출한다.
+3. 각 반복에 PO 평균, DR 평균, all=0.5*PO+0.5*DR를 계산한다.
+4. 같은 추출 인덱스를 네 지표 모두에 공유하여2,000회 반복한다.
+5. 점 추정은 원래 clip별 D의 평균, CI는 반복 분포의2.5/97.5 percentile이다.
+```
+
+**기존 두 목적의 CI 하한·상한을 빼거나 CI 비중첩만으로 직접 비교를 대체하지 않는다.** APD 차이(%p)와 EPE 차이(m)는 별도 패널의0 기준선·점 추정·95% CI로 표시한다. 전체·PO·DR의 paired support를 붙인다.
+
+부호 해석은 같은 지표 계열(APD 또는 EPE)에서 다음과 같다.
+
+D는 두 공격 사이의 상대 차이다. 각 공격이 clean보다 실제로 손상됐는지 또는 개선됐는지는 영향표의 clean 대비 차분도 함께 확인한다. 양쪽 모두 개선된 경우 D의 비교는 개선이 더 작거나 큰 차이로 설명한다.
+
+| D_tracking | D_reconstruction | 관찰된 의미 |
+|---|---|---|
+| 양수 | 음수 | Tracking 목적은 tracking에서, reconstruction 목적은 reconstruction에서 더 큰 손상: 목적별 과제 선택성의 양상 |
+| 양수 | 양수 | Tracking 목적 공격이 두 과제 모두에서 더 큰 손상 |
+| 음수 | 음수 | Reconstruction 목적 공격이 두 과제 모두에서 더 큰 손상 |
+| 음수 | 양수 | Reconstruction 목적 공격은 tracking에서, tracking 목적 공격은 reconstruction에서 더 큰 손상 |
+
+0 또는 CI가0을 포함하는 경우 차이가 불확실하다고 설명한다. APD와 EPE의 부호나 결론이 다르면 모두 기록한다. 특정 PGD 결과의 상대 손상 비교이며 학습 로스의 중요도 순위·전역 최악 공격·두 head의 독립성을 확정하는 분석으로 쓰지 않는다. 다른 목적까지 모든 쌍을 비교하면 추가 탐색 분석으로 명시하고 기존6.4절의 작은 표본·단일seed·scene·다중 비교 한계를 유지한다.
+
+#### 6.6.4 내부 진단·영상과 연결하는 서술
+
+세 핵심 그림 뒤에6.6.3절의 차이가 큰 사례와 대표 PO/DR 사례를 연결한다. 사례 선택 기준을 명시하고7.5절의 진단으로 다음을 설명한다.
+
+- Benchmark APD/EPE와 비가중 native `tracking_l21`/`reconstruction_l21`이 함께 나빠지는가?
+- Raw/effective tracking confidence 및 reconstruction confidence가 weighted 목적값에 어떤 변화와 함께 나타나는가?
+- Head2의 `reconstruction_norm`은 clean 대비 얼마나 변하고 고정 `reconstruction_gt_norm`과 어떻게 다른가?
+- 같은 프레임의 궤적·reconstruction 오차 지도에서 두 손상이 어떤 모습으로 관찰되는가?
+
+이는 **연결된 모델에서 목적별 공격에 따른 손상 양상**을 설명한다. 공유 입력·표현·정규화가 함께 작용하므로 특정 연결이나 normalization 하나의 독립 인과 효과를 분리해 입증했다고 쓰지 않는다. 목적별 최적화 난도·raw 단위·선택 iterate도 다르므로 최고 `attack_loss`끼리 공격 강도를 비교하지 않는다. 저장 결과는 해당 목적값을 최대화한 상태이며 최저 APD나 최고 benchmark EPE를 직접 선택한 상태가 아니다.
+
 ## 7. 새 renderer에서 만들 정성·진단 그림
 
 신규 파일명 제안: `scripts/render_component_comparisons.py`. 기존 renderer의 유효한 함수·투영 검사·그림 스타일을 재사용하되 이번 schema에 맞는 adapter를 둔다. 한 조건만 시험 렌더링한 뒤 전체 40쌍을 순회한다. 파일명에는 objective/dataset/sequence를 포함한다.
@@ -446,6 +556,14 @@ error_m = np.linalg.norm(aligned - reconstruction_gt, axis=-1)
 
 영상 FPS는 preview 설정이다. 128장 기준10fps는12.8초, 6fps는약21.33초, 15fps는약8.53초이며 원본 촬영 FPS를 뜻하지 않는다. 표시 frame index, 저장 source index, FPS, point 선택 수를 캡션과 manifest에 기록한다.
 
+### 7.7 같은 클립·같은 프레임의 두 기하 공격 비교
+
+6.6절과 연결할 정성 패널은 열을 **clean / tracking_3d 공격 / reconstruction_3d 공격**으로 고정한다. 같은 클립의 frame0/64/127에서 RGB, GT/예측 tracking overlay, reconstruction meter 오차 지도를 행으로 묶는다. 생성 이름 예시는 `geometry_attack_triptych_frame_064.png`다.
+
+세 조건의 source frame·GT·query ID·표시 점·카메라·크기를 일치시키고 reconstruction color scale을 공유한다. 정렬은 각 조건에 기록된 official scale을 유지한다. 두 공격의 선택 step이 다를 수 있으므로 패널 캡션에 각 `selected_state`를 적는다. 표시할 frame/query를 공격마다 따로 골라 더 극적으로 보이게 만들지 않는다.
+
+기존 각 objective의 clean/attack 영상은 유지하고, 대표 PO/DR 사례에는 필요하면 세 조건을 나란히 배치한 전체128프레임 영상을 추가한다. Clip별 수치와 진단 값의 원래 결과 경로를 패널에서 찾을 수 있게 한다.
+
 ## 8. HTML 보고서의 구성
 
 신규 파일명 제안: `scripts/build_component_html_report.py`. `study_analysis.json`과 verified scalar를 주 데이터로 삼고 PNG·정성 결과를 상대 경로로 묶는다. 기존 Markdown을 HTML로 바꾸는 것만으로 완성하지 않는다.
@@ -454,17 +572,20 @@ error_m = np.linalg.norm(aligned - reconstruction_gt, axis=-1)
 |---:|---|---|
 | 1 | 제목·핵심 결과 | run ID, 검증 상태, 작성 시각/KST, 48/48, 8클립/128프레임, 실제 핵심 수치 |
 | 2 | 실험 조건 | checkpoint/commit, PO4+DR4, ε/step/PGD/seed/전처리, 다섯 objective의 의미 |
-| 3 | 얼마나 떨어졌는가 | 5목적 요약 표: clean/attack APD%, drop%p, 상대%, EPE m, 증가m, 배수, 95% CI |
-| 4 | 전체·PO·DR 비교 | dataset 필터와 클립 동일 가중치, 각 그룹 support 8/4/4 |
-| 5 | 통계 시각화 | 기존 heatmap·paired CI·native L21 PNG와 단위/해석 캡션 |
-| 6 | 클립별 상세 | 8클립×5공격의 40행, 전체 프레임 EPE 곡선, 선택 objective/clip의 RGB·추적·recon 지도 |
-| 7 | PGD 및 내부 진단 | history/selected state, normalization 변화, raw/effective confidence, native 오차 |
-| 8 | 실제 실행 시간 | attack/condition/objective wall, pause/resume 구분, 분석·렌더링 시간 별도 |
-| 9 | 검증·실패 기록 | audit/analysis 완료 증거, replay 기록, SHA, warnings/과거 실패/정성 렌더링 실패 |
-| 10 | 해석과 제한 | 고정 모델 입력 공격, 개발8클립, 단일seed, CI 한계, reconstruction protocol, 공유 normalization |
-| 11 | 재현·근거 | artifact 및 코드 경로, 생성 command, 보고서 manifest, 작은 scalar/CSV 다운로드 |
+| 3 | 전체 영향표 | 6.6.1절: 5목적×두 과제 APD/EPE 손상, clean/attack, 상대%, 배수, CI; 전체·PO·DR 필터와 support 8/4/4 |
+| 4 | 클립별 손상 이동 | 6.6.2절: 두 과제 상대 APD 손상 산점도, 목적 색·dataset 모양, 동일 clip의 두 기하 공격 연결선 |
+| 5 | 두 기하 목적 직접 비교 | 6.6.3절: clip별 A−B 차분과 그 자체의 paired CI, APD/EPE 분리, 전체·PO·DR |
+| 6 | 내부 진단과 같은 프레임 | Native L21·raw/effective confidence·normalization, clean/두 기하 공격의 같은 frame 패널, 저장 selected state |
+| 7 | 클립별 상세·PGD | 8클립×5공격의40행, 전체128프레임 EPE, RGB/추적/recon 지도·영상, history 곡선 |
+| 8 | 기존 통계 그림 | 기존 heatmap·paired CI·native L21 PNG와 단위/해석 캡션; 세 핵심 그림의 보조 근거 |
+| 9 | 실제 실행 시간 | attack/condition/objective wall, pause/resume 구분, 분석·렌더링 시간 별도 |
+| 10 | 검증·실패 기록 | audit/analysis 완료 증거, replay 기록, SHA, warnings/과거 실패/정성 렌더링 실패 |
+| 11 | 해석과 제한 | 고정 모델 입력 공격, 개발8클립, 단일seed, CI 한계, reconstruction protocol, 공유 normalization |
+| 12 | 재현·근거 | artifact 및 코드 경로, 생성 command, 보고서 manifest, 작은 scalar/CSV 다운로드 |
 
 요약을 먼저 보여주고 전문 진단은 뒤에 둔다. 첫 화면에 다섯 raw loss 숫자를 나열해 성능 비교처럼 보이게 하지 않는다. 자연어 결론은 실제 데이터를 이용해 생성하고 값이 없으면 문장을 생략하거나 N/A로 표시한다.
+
+보고서의 중심 순서는 **전체 영향표 → 클립별 손상 이동 → 직접 비교 → 내부 진단과 같은 프레임 영상**으로 고정한다.
 
 단위가 다른 지표를 한 축에 그리지 않는다. 감소/증가 부호가 양수이면 해당 APD/EPE 정의에서 손상이고 음수이면 개선이다. Confidence 변화는 별도의 score 변화로 해석한다. 극단값 때문에 log axis를 사용하면 축 이름과 0/음수 처리 방식을 표시한다.
 
@@ -485,6 +606,9 @@ HTML은 다음 사용성을 갖춘다.
 <RUN>/html_report/
   index.html
   assets/
+    task_impact_matrix.png
+    cross_task_apd_scatter.png
+    geometry_attack_contrasts.png
     component_changes_heatmap.png
     paired_bootstrap_ci.png
     native_l21_changes.png
@@ -497,8 +621,10 @@ HTML은 다음 사용성을 갖춘다.
       pgd_history.png
       normalization.png
     timelines/{dataset}/{sequence}/tracking_epe.png
+    geometry_cases/{dataset}/{sequence}/geometry_attack_triptych_frame_064.png
   data/
     report_data.json
+    task_coupling_analysis.json
     sequence_metrics.csv
     aggregate_metrics.csv
   report_manifest.json
@@ -518,6 +644,7 @@ analyzer_source_sha256, renderer/builder source SHA 또는 Git commit
 official commit, checkpoint SHA, config/manifest hash
 objective 순서, 고정8클립 명단, frame/source index, 표시 query ID
 bootstrap 설정, preview FPS, δ 증폭, color scale 규칙
+scatter 축/분모 정의와 제외점, 직접 contrast 방향/paired clip/seed/추출 인덱스 및 CI 설정
 생성 명령, 시작/종료 시각, 출력 asset hash, 누락/실패 목록
 ```
 
@@ -611,6 +738,8 @@ if ($LASTEXITCODE -ne 0) { throw 'HTML 생성 또는 검증에 실패함.' }
 
 `--require-complete`는3절의 모든 gate를 적용한다. 숫자와 자산을 검증한 뒤 HTML을 저장하고 manifest를 남긴다. source NPZ가 없어 정성 그림을 만들 수 없는 경우 수치 보고서의 제한을 명확히 적고, 정성 시각화까지 완료했다고 보고하지 않는다.
 
+Builder는6.6절의 추가 분석도 CPU로 수행하여 `data/task_coupling_analysis.json`과 세 핵심 PNG를 생성한다. 이 JSON에는 input analysis SHA·scope, impact matrix의 원래 지표/차분/CI, scatter의 dataset/sequence/objective/x/y 및 N/A 목록, geometry contrast의 clip별 네 D·dataset별 estimate/CI/support, contrast 방향과 bootstrap seed/samples/가중치/paired 추출 규칙을 기록한다. 기존 `study_analysis.json`은 읽기 전용으로 유지하고 새 분석 JSON과 그림을 해당 source SHA에 연결한다. 기존 분석에 없던 CI를 원래 분석기의 산출물이라고 표시하지 않는다.
+
 ### 10.4 CPU 환경과 실행 경계
 
 NumPy/Matplotlib/Pillow와 ffmpeg/ffprobe가 필요하다. 공식 시각화는 mediapy·OpenCV·vendor 관련 의존성도 필요할 수 있다. 프로젝트의 기존 환경과 [runtime requirements](../docker/runtime-requirements.txt)를 먼저 확인한다. 실행 중인 컨테이너에 pip upgrade하거나 Docker 이미지를 재빌드하지 않는다. 필요하면 별도의 CPU 후처리 환경을 준비한다.
@@ -641,6 +770,10 @@ UTC를 KST로 변환한 시작/종료 시각과 pause/resume 이력을 함께 �
 - 요약5행 ×3dataset 및 상세40행의 숫자를 분석 JSON과 원래 result로 교차 확인한다.
 - APD 단위%, 차분%p, 상대%, EPE m, 비율의 분모와 sign이 정확하다. N/A·음수·기록 실패를 유지한다.
 - 집계 숫자는 반올림 전 값으로 계산하고 bootstrap estimate/CI/support를 그대로 연결한다.
+- 세 핵심 그림은 기존 PNG와 구분해 실제 생성됐다. 영향표는 APD/EPE 패널별 공통 단위·color scale과 전체/PO/DR support를 보존한다.
+- 산점도는 최대40개 clip/objective 점과 같은 clip의 두 기하 공격 최대8개 연결선을 가진다. 두 점 모두 유효한 clip만 연결한다. N/A 제외 수와 분모·음수·평균 정의를 확인한다.
+- 직접 contrast는 동일 clip/seed의 `tracking_3d − reconstruction_3d` 차분이며 네 지표의 CI는 그 원자료에서 새로 계산했다. 기존 두 CI의 차이가 아니다.
+- 추가 분석 JSON의 input SHA, clip별 D, PO/DR 가중 평균·추출 규칙·CI와 HTML/그림 수치가 일치한다.
 - 프레임별 EPE와 reconstruction residual의 전체 집계가 저장 지표와 일치한다.
 - Native L21/confidence/normalization을 benchmark metric과 구분하고 서로 다른 loss 절댓값으로 순위를 만들지 않는다.
 - HTML·그림의 완료 라벨이 audit/analysis에 의해 증명되고 GitHub 과거 snapshot이 데이터로 사용되지 않는다.
@@ -649,6 +782,7 @@ UTC를 KST로 변환한 시작/종료 시각과 pause/resume 이력을 함께 �
 
 - 원본 배열은128프레임이고 encoded MP4도 ffprobe로128 decoded frames, FPS, 해상도, duration을 확인한다. packet 수만 frame 수로 쓰지 않는다.
 - frame0/64/127의 스틸·query ID·GT와 같은 점의 clean/attack 대응을 검사한다.
+- 두 기하 공격 비교 패널의 clean/tracking_3d/reconstruction_3d가 같은 source frame·GT·query·카메라·color scale로 표시되고 선택 step도 각 결과와 일치한다.
 - RGB 차분 ×64 라벨과 실제 ε, meter colorbar, 공통 scale, invalid/out-of-frame 처리가 보인다.
 - 생성 index.html을 실제 브라우저로 열어 기본 화면, PO/DR 필터, 각 objective/clip, 표 정렬, 그림 확대, 영상 재생, 인쇄 화면을 확인한다.
 - file://에서 작동하고 상대 자산 링크가 모두 존재하며 인터넷을 꺼도 표·그림·필터가 작동한다. 다른 폴더로 복사한 보고서도 확인한다.
@@ -663,9 +797,11 @@ UTC를 KST로 변환한 시작/종료 시각과 pause/resume 이력을 함께 �
 
 1. 어떤 PGD 목적이 선정8클립에서 tracking APD/EPE에 얼마나 영향을 주었는가?
 2. Reconstruction 성능도 얼마나 변했으며 PO와 DR의 양상은 어떻게 다른가?
-3. 전체128프레임과 클립별 변화가 평균 결과를 어떻게 뒷받침하는가?
-4. 입력 변화는 ε4/255 예산 안에 있었고 저장 결과는 검증됐는가?
-5. Native loss·confidence·normalization 진단과 실제 benchmark 손상은 어떻게 다른가?
-6. 이 결과로 설명할 수 있는 범위와 아직 검증하지 않은 범위는 무엇인가?
+3. Tracking 목적과 reconstruction 목적은 자기 과제/상대 과제의 손상에서 어떻게 다르며 직접 paired 차이의 불확실성은 어느 정도인가?
+4. 같은 clip에서 공격 목적을 바꿀 때 두 성능의 손상 위치가 어떻게 이동하는가?
+5. 전체128프레임과 클립별 변화가 평균 결과를 어떻게 뒷받침하는가?
+6. 입력 변화는 ε4/255 예산 안에 있었고 저장 결과는 검증됐는가?
+7. Native loss·confidence·normalization 진단과 실제 benchmark 손상은 어떻게 다른가?
+8. 이 결과로 설명할 수 있는 범위와 아직 검증하지 않은 범위는 무엇인가?
 
 이 MD를 작성하는 작업의 완료와 실험/HTML 제작의 완료는 별개다. **현재 요청은 이 상세 지시서를 만드는 것이며, 최종 HTML 제작자는 실험의 실제 종료와3절 검증을 확인한 후 위 절차를 수행한다.**
