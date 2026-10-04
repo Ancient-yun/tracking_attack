@@ -1,0 +1,281 @@
+{
+  "schema_version": 1,
+  "status": "passed",
+  "synthetic_only": true,
+  "started_at_utc": "2026-10-04T15:50:14.595Z",
+  "report_dir": "C:\\code\\tracking_attack\\runs\\SYNTHETIC_HTML_BROWSER_QA_FROZEN_20261005\\html_staging",
+  "cpu_only": true,
+  "new_model_inference": false,
+  "command": [
+    "C:\\Users\\eodbs\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\node\\bin\\node.exe",
+    "C:\\code\\tracking_attack\\scripts\\verify_component_html_report.cjs",
+    "--report-dir",
+    "C:\\code\\tracking_attack\\runs\\SYNTHETIC_HTML_BROWSER_QA_FROZEN_20261005\\html_staging",
+    "--playwright-module",
+    "C:\\Users\\eodbs\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\node\\node_modules\\playwright",
+    "--browser-executable",
+    "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
+    "--synthetic"
+  ],
+  "errors": [],
+  "index_sha256": "bc315703bb62af0409a9b8716271b44646c891b2c8562aecad1bac85384529e7",
+  "report_data_sha256": "b3148efc841eddc40a5e32a22034552ac702609fe596553be1a29695ec6a767d",
+  "run_signature": "6322c54749f17816778153fb6f7c87de6be11570de7616199cde2550aa32a054",
+  "outputs_verified_before": 571,
+  "browser_version": "154.0.4258.53",
+  "browser_executable": "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
+  "original_folder": {
+    "passed": true,
+    "portable_copy": false,
+    "steps": [
+      {
+        "check": "file_url_ready_local_assets_no_autoplay",
+        "passed": true,
+        "local_references": 30
+      },
+      {
+        "check": "recorded_failure_warning_preserved",
+        "passed": true,
+        "recorded_failed_attempts": 2
+      },
+      {
+        "check": "dataset_filter_numeric_rows_and_summaries",
+        "dataset": "po_mini",
+        "count": 20,
+        "passed": true,
+        "impact_rows": 5,
+        "contrast_rows": 4,
+        "scatter_points": 20,
+        "scatter_excluded": 0,
+        "scatter_connections": 4
+      },
+      {
+        "check": "dataset_filter_numeric_rows_and_summaries",
+        "dataset": "ds_mini",
+        "count": 20,
+        "passed": true,
+        "impact_rows": 5,
+        "contrast_rows": 4,
+        "scatter_points": 20,
+        "scatter_excluded": 0,
+        "scatter_connections": 4
+      },
+      {
+        "check": "dataset_filter_numeric_rows_and_summaries",
+        "dataset": "all",
+        "count": 40,
+        "passed": true,
+        "impact_rows": 5,
+        "contrast_rows": 4,
+        "scatter_points": 40,
+        "scatter_excluded": 0,
+        "scatter_connections": 8
+      },
+      {
+        "check": "objective_clip_search_sort_restore",
+        "passed": true
+      },
+      {
+        "check": "case_objective_media_metadata",
+        "passed": true,
+        "cases": 40
+      },
+      {
+        "check": "source_frames_0_64_127_and_image_dialog",
+        "passed": true
+      },
+      {
+        "check": "actual_video_playback",
+        "video": "rgb-video",
+        "passed": true,
+        "current_time": 0.359129,
+        "duration": 12.8
+      },
+      {
+        "check": "actual_video_playback",
+        "video": "tracking-video",
+        "passed": true,
+        "current_time": 0.363085,
+        "duration": 12.8
+      },
+      {
+        "check": "responsive_body_overflow",
+        "passed": true,
+        "viewport": 1440,
+        "width": 1440,
+        "scroll_width": 1440
+      },
+      {
+        "check": "responsive_body_overflow",
+        "passed": true,
+        "viewport": 390,
+        "width": 390,
+        "scroll_width": 390
+      },
+      {
+        "check": "print_static_tables",
+        "passed": true,
+        "overflow": [
+          {
+            "client": 1122,
+            "scroll": 1122
+          },
+          {
+            "client": 1122,
+            "scroll": 1122
+          },
+          {
+            "client": 1122,
+            "scroll": 1122
+          },
+          {
+            "client": 1122,
+            "scroll": 1122
+          },
+          {
+            "client": 1122,
+            "scroll": 1122
+          },
+          {
+            "client": 1122,
+            "scroll": 1122
+          }
+        ],
+        "visible_videos": 0,
+        "body_width": 1122,
+        "viewport": 1122
+      }
+    ],
+    "console_errors": [],
+    "external_network_requests": [],
+    "local_references_checked": 30
+  },
+  "portable_folder": {
+    "passed": true,
+    "portable_copy": true,
+    "steps": [
+      {
+        "check": "file_url_ready_local_assets_no_autoplay",
+        "passed": true,
+        "local_references": 30
+      },
+      {
+        "check": "recorded_failure_warning_preserved",
+        "passed": true,
+        "recorded_failed_attempts": 2
+      },
+      {
+        "check": "dataset_filter_numeric_rows_and_summaries",
+        "dataset": "po_mini",
+        "count": 20,
+        "passed": true,
+        "impact_rows": 5,
+        "contrast_rows": 4,
+        "scatter_points": 20,
+        "scatter_excluded": 0,
+        "scatter_connections": 4
+      },
+      {
+        "check": "dataset_filter_numeric_rows_and_summaries",
+        "dataset": "ds_mini",
+        "count": 20,
+        "passed": true,
+        "impact_rows": 5,
+        "contrast_rows": 4,
+        "scatter_points": 20,
+        "scatter_excluded": 0,
+        "scatter_connections": 4
+      },
+      {
+        "check": "dataset_filter_numeric_rows_and_summaries",
+        "dataset": "all",
+        "count": 40,
+        "passed": true,
+        "impact_rows": 5,
+        "contrast_rows": 4,
+        "scatter_points": 40,
+        "scatter_excluded": 0,
+        "scatter_connections": 8
+      },
+      {
+        "check": "objective_clip_search_sort_restore",
+        "passed": true
+      },
+      {
+        "check": "case_objective_media_metadata",
+        "passed": true,
+        "cases": 1
+      },
+      {
+        "check": "source_frames_0_64_127_and_image_dialog",
+        "passed": true
+      },
+      {
+        "check": "actual_video_playback",
+        "video": "rgb-video",
+        "passed": true,
+        "current_time": 0.358523,
+        "duration": 12.8
+      },
+      {
+        "check": "actual_video_playback",
+        "video": "tracking-video",
+        "passed": true,
+        "current_time": 0.359545,
+        "duration": 12.8
+      },
+      {
+        "check": "responsive_body_overflow",
+        "passed": true,
+        "viewport": 1440,
+        "width": 1440,
+        "scroll_width": 1440
+      },
+      {
+        "check": "responsive_body_overflow",
+        "passed": true,
+        "viewport": 390,
+        "width": 390,
+        "scroll_width": 390
+      },
+      {
+        "check": "print_static_tables",
+        "passed": true,
+        "overflow": [
+          {
+            "client": 1122,
+            "scroll": 1122
+          },
+          {
+            "client": 1122,
+            "scroll": 1122
+          },
+          {
+            "client": 1122,
+            "scroll": 1122
+          },
+          {
+            "client": 1122,
+            "scroll": 1122
+          },
+          {
+            "client": 1122,
+            "scroll": 1122
+          },
+          {
+            "client": 1122,
+            "scroll": 1122
+          }
+        ],
+        "visible_videos": 0,
+        "body_width": 1122,
+        "viewport": 1122
+      }
+    ],
+    "console_errors": [],
+    "external_network_requests": [],
+    "local_references_checked": 30
+  },
+  "qa_source_sha256": "6e76585c07a745c30e5a5d8bfd06cf2a16d6e352b6d7d23ac8060a1c33c5c945",
+  "completed_at_utc": "2026-10-04T15:50:22.354Z"
+}

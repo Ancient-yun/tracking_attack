@@ -209,3 +209,9 @@ CPU toy 검증은 전체 graph와 두 번 계산 gradient의 일치, scale gradi
 | `failures.jsonl` | NaN/Inf, 모델/데이터/검증 실패의 traceback |
 
 오류는 조용히 제외하지 않습니다. 불완전 run은 nonzero exit code로 끝나고 실패 및 완료 수가 남습니다. 전체 본 평가에는 여러 시간의 GPU 실행과 저장 공간이 필요할 수 있으므로, 검증 run의 처리 시간과 VRAM부터 확인합니다. 공식 코드·모델의 비상업 연구 라이선스는 upstream README를 따릅니다.
+
+## Loss-component study HTML 보고서
+
+PO4/DR4의 원본128프레임·PGD20 실험은 [HTML 보고서 가이드](docs/HTML_REPORT_GUIDE.md)를 따릅니다. 공격 목적별 tracking/reconstruction 손상 영향표, 같은 클립의 상대 APD 산점도, 두 기하 공격의 직접 paired 비교와 같은 프레임 영상을 연결합니다.
+
+구현된 CPU 후처리의 실행 방법은 [HTML 파이프라인 안내](docs/HTML_REPORT_PIPELINE.md)에 있습니다. 전체48조건의 감사·분석과 원래 GPU 컨테이너의 정상 종료를 확인한 뒤에만 보고서를 만들고, 실제 브라우저 QA까지 통과한 결과를 `run/html_report/index.html`로 게시합니다. 합성 smoke 결과는 실제 실험 결과와 구분하며 대용량 데이터·영상은 Git에 포함하지 않습니다.

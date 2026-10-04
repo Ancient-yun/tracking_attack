@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "recorded_at_utc": "2026-10-04T15:53:26.910881+00:00",
+  "kind": "postprocessing_preparation_and_synthetic_smoke",
+  "actual_campaign_completed": false,
+  "actual_campaign_html_created": false,
+  "actual_campaign_outputs_rendered": false,
+  "numerical_source14_unchanged": true,
+  "cpu_tests": {
+    "passed": 110,
+    "skipped": 1,
+    "groups": {
+      "report_data": 43,
+      "component_visualization": 23,
+      "html_builder": 24,
+      "postprocessing_pipeline": 20
+    },
+    "skip_reason": "Windows symlink creation permission unavailable",
+    "stable_source_builder_integration_rerun_passed": true
+  },
+  "browser_qa": {
+    "synthetic_only": true,
+    "status": "passed",
+    "evidence": "synthetic_browser_qa.json",
+    "sha256": "bdbb830d917c27482b447b832441423aeb0bbb27ffabd3b7766f1caeb0cf4555",
+    "original_and_portable_file_url": true,
+    "external_network_requests": 0,
+    "javascript_errors": 0
+  },
+  "requirements_pasted_snapshot_sha256": "3de37d419b38243c4370d711fad8c4d1366692575a32402ce2af732702790705",
+  "current_guide_sha256": "b2590b4ca315376984b7874f8ffab20531eac4ed368b929a6c66ed9f729e7cc7",
+  "installed_source_sha256": {
+    "docs/HTML_REPORT_PIPELINE.md": "8ec490076c1434ed48445aa7548a77f1780c519253db46fc3ef6bb320e02388f",
+    "scripts/build_component_html_report.py": "bad3ad71d015af3013777e3d0cf4538bf5304ccf0dc1aaa1839449fa3d4e60e4",
+    "scripts/component_projection.py": "cd6187d010fbaf7258f2652a5d3c913659c3d78710bb846aaebe059817fe0da6",
+    "scripts/component_report_data.py": "ab1bdff8220cb22b2adb75a1ba3924e5eb21553858fae2727aaa517f49daa31a",
+    "scripts/render_component_comparisons.py": "478724abe8fdd3c766c963db3410f5386162e237ec0aa6fa74ee959ab059ea59",
+    "scripts/run_component_report_pipeline.py": "eea63f67271591a4cfa6d8cf208f45c7550547c819949a999de077f1e8c3e538",
+    "scripts/verify_component_html_report.cjs": "6e76585c07a745c30e5a5d8bfd06cf2a16d6e352b6d7d23ac8060a1c33c5c945",
+    "templates/component_report.html": "e176c84596bbe313c3aa1a56c0c30e82e95fd038bda6015ad9ec5b379015eaef",
+    "tests/test_build_component_html_report.py": "27553ccafd6bb9120166a1acc1db1b2cb9c342605357c044124afa192e5906e2",
+    "tests/test_component_report_data.py": "449f9138726787256e472cebb1584523e1ec80efbc613a5ff494903af3d122e7",
+    "tests/test_component_report_pipeline.py": "80cdce23943ed6a1d2b2f01b7d3638dc21c3a90345b0103804454fd15e7637f8",
+    "tests/test_component_visualization.py": "b25842434425a31f1a6990743ef0c08dcd4b2c5edfb5271ae705f2e04afbccb1",
+    "docs/HTML_REPORT_GUIDE.md": "b2590b4ca315376984b7874f8ffab20531eac4ed368b929a6c66ed9f729e7cc7"
+  },
+  "config_sha256": "02d775afd6e6f94cc54a067aebf75206f754380bb6ddf8fd91305e338ec3aa6c",
+  "manifest_sha256": "3dfa82fa87cfaa715aa8a86207eabb0e8013f4780d223ed66a61d025ef126577",
+  "publication": "Code, documentation, tests and synthetic QA proof only; large datasets, arrays and videos remain local."
+}
