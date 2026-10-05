@@ -2,6 +2,8 @@
 
 `lossstudy_allframes_20261004_183750`의 검증된 결과를 12장, 16:9 발표 자료로 요약한다. 다섯 공격 로스의 정의, 두 과제의 성능 감소, 기하 공격 간 직접 비교와 대표 영상 여덟 개를 담는다. PO와 DR 각각에서 Tracking 기하 공격 및 Reconstruction 기하 공격의 Tracking 결과와 Reconstruction 결과를 나란히 보여준다.
 
+5장의 막대는 **공격 후 APD 값(%)**을 표시한다. 원본 보고서의 `dataset == "all"` 집계에서 `tracking_apd_drop_pp_attacked`와 `reconstruction_apd_drop_pp_attacked`를 사용한다. Clean APD는 Tracking 69.69%, Reconstruction 63.25%로 함께 표시하며 두 막대는 공통 0~100% 척도다. APD는 높을수록 좋다. 7장의 두 기하 공격 직접 비교는 같은 클립의 손상 차이와 paired CI를 유지한다.
+
 완성 파일은 `runs/docker/lossstudy_allframes_20261004_183750/presentation/st4rtrack_pgd_slides.html`이다. 약 53MB이며 이미지, 영상, 스타일, 스크립트, 발표에 사용한 수치를 HTML 안에 포함한다. **이 HTML 한 파일만 복사하거나 이름을 바꿔도 된다.** 별도의 assets 폴더나 인터넷 연결은 필요하지 않다. 입력 RGB의 절대 차분 영상은 포함하지 않는다.
 
 | 슬라이드 | 대표 클립 | 공격 목적 | 함께 표시하는 결과 |
@@ -77,9 +79,13 @@ Renderer는 기존 manifest가 있는 폴더를 덮어쓰지 않으므로 다시
   --browser-executable 'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe'
 ```
 
-새 영상의 출처 및 frame count 근거는 `presentation/.build/task_visualization_v2/task_visualization_manifest.json`이다. 최종 실제 브라우저 검증 근거는 `presentation/.build/qa/revision02_fixed/presentation_qa.json`이다. 원본과 한글·공백 이름의 단독 복사본 각각에서 12장 × 4뷰포트, 로스 수식과 막대·대표 수치 연결, 이미지 로드, 여덟 영상의 실제 시간 진행 및 마지막 프레임 12.7초와 종료 재생, 두 결과 함께 재생·동일 프레임 이동·정지, 장 이동 시 정지, 목차·메모·전체 화면을 검증한다. 외부 네트워크 요청, 외부 파일 자산 요청, 콘솔 및 JavaScript 오류와 원본/복사본 HTML SHA도 기록한다.
+새 영상의 출처 및 frame count 근거는 `presentation/.build/task_visualization_v2/task_visualization_manifest.json`이다. APD 표시 수정본의 브라우저 검증 근거는 `presentation/.build/qa/revision03_apd_values/presentation_qa.json`이다. 5장의 원본 집계 연결, 표시값과 단위, 공통 막대 척도, 화면 배치와 단독 HTML 복사본을 검사한다.
 
-내용 대조는 `presentation/.build/content_review_revision02_fixed.json`, 전체 12장 화면 검토는 `presentation/.build/visual_review_revision02_fixed.json`에 남긴다. 빠른 재생 취소 검증과 영상 디코딩 후 추가 화면은 최종 QA 폴더에 별도 보존한다. 이 검증 파일과 생성 manifest는 HTML 재생에 필요하지 않다. 이전 검증과 이전 HTML SHA는 수정 전 발표자료의 근거로 보존한다.
+이전의 전체 재생 검증 근거 `presentation/.build/qa/revision02_fixed/presentation_qa.json`도 보존한다. 원본과 한글·공백 이름의 단독 복사본 각각에서 12장 × 4뷰포트, 로스 수식과 막대·대표 수치 연결, 이미지 로드, 여덟 영상의 실제 시간 진행 및 마지막 프레임 12.7초와 종료 재생, 두 결과 함께 재생·동일 프레임 이동·정지, 장 이동 시 정지, 목차·메모·전체 화면을 확인한 기록이다. 현재 수정본과 이전 검증본의 데이터·영상·이미지 및 APD 막대 렌더링 이외의 실행 코드가 같음을 대조하여 재생 검증을 연결한다. 이전 검증기의 정확한 소스는 `presentation/.build/verifier_history/revision02_full_verify_component_presentation.cjs`에 보존한다.
+
+검증기를 기본 인수로 실행하면 전체 브라우저 검사를 수행한다. 한 장의 APD 표시만 바꾼 경우에는 `--scope slide5`와 `--prior-presentation`, `--prior-qa`, `--prior-review`, `--prior-verifier`의 절대 경로를 함께 지정한다. 이 모드는 이전 검증 근거의 SHA와 변경 범위를 대조하고 현재 화면을 검사하며, 영상 재생을 새로 검사한 것으로 기록하지 않는다.
+
+원본 48조건에서 APD를 다시 평균한 근거는 `presentation/.build/apd_values_source_audit_revision03.json`, 새 발표의 내용 대조는 `presentation/.build/content_review_revision03.json`, 화면 검토는 `presentation/.build/visual_review_revision03.json`에 남긴다. 이전 과학 감사와 빠른 재생 취소·실제 영상 디코딩 증거도 유지한다. 이 검증 파일과 생성 manifest는 HTML 재생에 필요하지 않다.
 
 ## 내용의 범위
 

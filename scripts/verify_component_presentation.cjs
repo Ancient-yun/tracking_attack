@@ -19,6 +19,7 @@ const CASES = [
 const TASKS = ['tracking','reconstruction'];
 const MEDIA_IDS = CASES.flatMap(row=>TASKS.map(task=>`${row.prefix}_${row.objective}_${task}`));
 const METRICS = ['tracking_apd_drop_pp','reconstruction_apd_drop_pp','tracking_epe_increase_m','reconstruction_epe_increase_m'];
+const BAR_METRICS = ['tracking_apd_drop_pp_attacked','reconstruction_apd_drop_pp_attacked'];
 const LOSS_EXPRESSIONS = [
   'mean ||s_med P1 - G1||^2','mean(c1_eff * e1)','mean(C2 * e2)',
   '-0.2 * (mean log max(c1_eff,1) + mean log C2)',
@@ -46,7 +47,9 @@ const safeRelative = value => typeof value==='string'&&value.length>0&&!path.isA
   &&!/[\\]/.test(value)&&!value.split('/').some(part=>part==='..'||part==='.'||part==='')&&!/^[a-z]+:/i.test(value);
 
 function argumentsFrom(argv) {
-  const allowed = new Set(['presentation','qa-dir','playwright-module','browser-executable']);
+  const required = ['presentation','qa-dir','playwright-module','browser-executable'];
+  const inherited = ['prior-presentation','prior-qa','prior-review','prior-verifier','report-dir'];
+  const allowed = new Set([...required,...inherited,'scope']);
   const result = {};
   for(let i=0;i<argv.length;i++) {
     if(argv[i]==='--help'||argv[i]==='-h') return {help:true};
@@ -55,7 +58,12 @@ function argumentsFrom(argv) {
     check(!(key in result)&&i+1<argv.length&&!argv[i+1].startsWith('--'), `Missing or repeated argument ${argv[i]}`);
     result[key]=argv[++i];
   }
-  for(const key of allowed) check(key in result&&path.isAbsolute(result[key]), `--${key} must be an absolute path`);
+  result.scope??='full';check(['full','slide5'].includes(result.scope),'--scope must be full or slide5');
+  for(const key of required) check(key in result&&path.isAbsolute(result[key]), `--${key} must be an absolute path`);
+  for(const key of inherited) {
+    if(result.scope==='slide5')check(key in result, `--${key} is required for inherited playback evidence`);
+    if(key in result)check(path.isAbsolute(result[key]), `--${key} must be an absolute path`);
+  }
   return result;
 }
 
@@ -76,6 +84,12 @@ function validateData(data) {
   check(aggregates.length===5&&new Set(aggregates.map(r=>r.objective)).size===5
     &&OBJECTIVES.every(o=>aggregates.some(r=>r.objective===o)), 'Five unique overall objective aggregates are required');
   for(const row of aggregates) for(const metric of METRICS) check(finite(row[metric]), `Nonfinite aggregate ${row.objective}/${metric}`);
+  for(const row of aggregates) for(const metric of BAR_METRICS) {
+    check(finite(row[metric])&&row[metric]>=0&&row[metric]<=100, `Post-attack APD must be a finite percentage in [0,100]: ${row.objective}/${metric}`);
+    const change=metric.slice(0,-'_attacked'.length),clean=row[change+'_clean'];
+    check(finite(clean)&&clean>=0&&clean<=100,`Clean APD reference is absent or invalid: ${row.objective}/${metric}`);
+    close(row[change],clean-row[metric],`Aggregate APD clean/attacked/change mapping differs: ${row.objective}/${metric}`);
+  }
   check(Array.isArray(data.losses)&&data.losses.length===5, 'Five loss definitions are required');
   for(const [i,loss] of data.losses.entries()) check(loss.id===OBJECTIVES[i]&&loss.expression===LOSS_EXPRESSIONS[i],
     'Loss IDs, expression schema, or fixed order differ');
@@ -282,6 +296,27 @@ async function layout(page) {
   return result;
 }
 
+function validateBarGeometry(geometry,aggregates) {
+  check(geometry.length===10,'Exactly ten post-attack APD bars are required');
+  const pairs=new Set(),tracks=[];
+  for(const row of geometry) {
+    check(OBJECTIVES.includes(row.objective)&&BAR_METRICS.includes(row.metric),'Bar must use the actual attacked APD field, not a decline field');
+    const key=row.objective+'/'+row.metric;check(!pairs.has(key),`Duplicate metric bar ${key}`);pairs.add(key);
+    const expected=aggregates.find(a=>a.objective===row.objective)?.[row.metric];
+    check(row.value===expected&&finite(row.value)&&row.value>=0&&row.value<=100,`Bar does not preserve exact post-attack aggregate APD: ${key}`);
+    check(row.text===expected.toFixed(2)+'%',`Post-attack APD label must display the original value with percent units: ${key}`);
+    check(row.slideIndex===4&&row.height>0&&row.trackWidth>0&&row.width>=0,'Post-attack APD bar is not visible on slide 5');
+    close(row.width/row.trackWidth,row.value/100,`Bar does not use the common 0-100 percent scale: ${key}`,0.00015);
+    close(row.stylePercent,row.value,`Bar inline width does not equal the original actual APD percent: ${key}`,1e-10);
+    tracks.push(row.trackWidth);
+  }
+  const mean=tracks.reduce((a,b)=>a+b,0)/tracks.length;
+  check(tracks.every(value=>Math.abs(value-mean)<=0.1),'Tracking and Reconstruction must have equal full-scale track widths');
+  return {count:10,quantity:'post_attack_apd',unit:'percent',scale:[0,100],higher_is_better:true,
+    exact_aggregate_binding:true,displayed_percent_labels_verified:true,proportional_lengths_verified:true,
+    shared_task_scale_verified:true,geometry};
+}
+
 async function checkBars(page,aggregates) {
   const rows=await page.locator('[data-metric][data-value]').evaluateAll(nodes=>nodes.map(el=>({
     metric:el.dataset.metric,value:Number(el.dataset.value),objective:el.dataset.objective,
@@ -289,33 +324,32 @@ async function checkBars(page,aggregates) {
   check(rows.length===10,'Exactly ten metric bars are required (five objectives × two APD tasks)');
   const pairs=new Set();
   for(const row of rows) {
-    check(OBJECTIVES.includes(row.objective)&&METRICS.slice(0,2).includes(row.metric), 'Metric bar objective/task identity is missing');
+    check(OBJECTIVES.includes(row.objective)&&BAR_METRICS.includes(row.metric), 'Metric bar must use the attacked APD field');
     const key=row.objective+'/'+row.metric;check(!pairs.has(key),`Duplicate metric bar ${key}`);pairs.add(key);
     check(row.value===aggregates.find(a=>a.objective===row.objective)[row.metric], `Bar does not preserve the exact aggregate value: ${key}`);
   }
-  const geometry=[];
-  for(const index of [...new Set(rows.map(row=>row.slideIndex))]) {
-    await goTo(page,index);
-    geometry.push(...await page.locator('section.slide.active [data-metric][data-value]').evaluateAll(nodes=>nodes.map(el=>({
-      metric:el.dataset.metric,objective:el.dataset.objective,value:Number(el.dataset.value),width:el.getBoundingClientRect().width,height:el.getBoundingClientRect().height}))));
-  }
-  for(const metric of METRICS.slice(0,2)) {
-    const bars=geometry.filter(r=>r.metric===metric);
-    check(bars.length===5&&bars.every(r=>r.height>0&&r.width>=0),'Metric bars are not visible');
-    const eligible=bars.filter(r=>Math.abs(r.value)>1e-12);
-    check(eligible.every(r=>r.width>0),'A nonzero metric has an invisible bar');
-    if(eligible.length>1) {
-      const factors=eligible.map(r=>r.width/Math.abs(r.value)),mean=factors.reduce((a,b)=>a+b,0)/factors.length;
-      check(factors.every(v=>Math.abs(v-mean)<=Math.max(mean*0.02,0.05)),`Bar lengths do not proportionally encode ${metric}`);
-      const sorted=[...eligible].sort((a,b)=>Math.abs(a.value)-Math.abs(b.value));
-      check(sorted.every((r,i)=>!i||r.width+1>=sorted[i-1].width),`Bar widths invert magnitude order for ${metric}`);
-    }
-  }
-  const factors=geometry.filter(row=>Math.abs(row.value)>1e-12).map(row=>row.width/Math.abs(row.value));
-  const factor=factors.reduce((sum,value)=>sum+value,0)/factors.length;
-  check(factors.every(value=>Math.abs(value-factor)<=Math.max(factor*0.02,0.05)),
-    'The Tracking and Reconstruction bars must use the same percentage-point display scale');
-  return {count:rows.length,exact_aggregate_binding:true,proportional_lengths_verified:true,shared_task_scale_verified:true,geometry};
+  await goTo(page,4);
+  const geometry=await page.locator('#slide-5 [data-metric][data-value]').evaluateAll(nodes=>nodes.map(el=>({
+    metric:el.dataset.metric,objective:el.dataset.objective,value:Number(el.dataset.value),
+    slideIndex:Number(el.closest('section.slide').id.slice(6))-1,
+    width:el.getBoundingClientRect().width,height:el.getBoundingClientRect().height,
+    trackWidth:el.closest('.bar-track')?.getBoundingClientRect().width,
+    stylePercent:Number(el.getAttribute('style')?.match(/(?:^|;)\s*width:\s*([\d.eE+-]+)%\s*(?:;|$)/)?.[1]),
+    text:el.closest('.bar-cell')?.querySelector('.bar-value')?.textContent.trim()})));
+  const result=validateBarGeometry(geometry,aggregates);
+  const text=normalizeText(await page.locator('#slide-5').textContent());
+  check(text.includes('공격 후 Tracking APD (%)')&&text.includes('공격 후 Reconstruction APD (%)'),
+    'Slide 5 task headers must label actual post-attack APD percent');
+  check(/0\s*[~–−-]\s*100%/.test(text)&&text.includes('높을수록')&&text.includes('좋'),
+    'Slide 5 must explain the common 0-100 percent scale and higher-is-better interpretation');
+  check(!text.includes('%p')&&!text.includes('APD 감소'), 'Slide 5 still labels actual APD as a percentage-point decline');
+  const trackingClean=aggregates[0].tracking_apd_drop_pp_clean,reconClean=aggregates[0].reconstruction_apd_drop_pp_clean;
+  check(aggregates.every(row=>row.tracking_apd_drop_pp_clean===trackingClean&&row.reconstruction_apd_drop_pp_clean===reconClean),
+    'Slide 5 cannot use one shared clean reference if objective clean means differ');
+  check(text.includes(trackingClean.toFixed(2)+'%')&&text.includes(reconClean.toFixed(2)+'%'),'Clean APD reference labels differ from original aggregate means');
+  result.labels={task_headers_verified:true,higher_is_better:true,clean_tracking_apd_percent:trackingClean,
+    clean_reconstruction_apd_percent:reconClean,percentage_point_decline_label_removed:true};
+  return result;
 }
 
 async function checkLosses(page,data) {
@@ -570,7 +604,7 @@ async function optionalPrint(page,directory) {
   return evidence;
 }
 
-async function verifyLocation(browser,htmlFile,directory,{screenshots=false,print=false}={}) {
+async function verifyLocation(browser,htmlFile,directory,{screenshots=false,print=false,scope='full'}={}) {
   await fs.mkdir(directory,{recursive:true});
   const context=await browser.newContext({viewport:{width:1600,height:1000},deviceScaleFactor:1,offline:true,acceptDownloads:false});
   const page=await context.newPage(),expectedURL=pathToFileURL(htmlFile).href;
@@ -580,7 +614,7 @@ async function verifyLocation(browser,htmlFile,directory,{screenshots=false,prin
   page.on('console',msg=>{if(msg.type()==='error')events.console_errors.push(msg.text());});
   page.on('pageerror',error=>events.page_errors.push(String(error.message||error)));
   await context.route('**/*',route=>/^https?:/i.test(route.request().url())?route.abort('blockedbyclient'):route.continue());
-  const result={status:'running',file_path:htmlFile,file_url:expectedURL,started_at_utc:currentUtc(),events};
+  const result={status:'running',scope,file_path:htmlFile,file_url:expectedURL,started_at_utc:currentUtc(),events};
   try {
     await page.goto(expectedURL,{waitUntil:'load',timeout:60000});
     await page.waitForFunction(()=>window.presentation&&typeof window.presentation.goTo==='function'
@@ -628,48 +662,155 @@ async function verifyLocation(browser,htmlFile,directory,{screenshots=false,prin
       if(screenshots&&viewport.width===390){for(const i of [0,11]){await goTo(page,i);await page.screenshot({path:path.join(directory,`mobile-slide-${i+1}.png`),animations:'disabled'});}}
     }
     await page.setViewportSize({width:1600,height:1000});result.task_pairs=[];
-    for(const row of CASES)result.task_pairs.push(await pairProof(page,row));
     result.videos=[];
-    for(const id of MEDIA_IDS) result.videos.push(await mediaProof(page,id,data.media[id]));
+    if(scope==='full') {
+      for(const row of CASES)result.task_pairs.push(await pairProof(page,row));
+      for(const id of MEDIA_IDS) result.videos.push(await mediaProof(page,id,data.media[id]));
+    }
     await goTo(page,0);
     if(print)result.print=await optionalPrint(page,directory);
     check(events.external_requests.length===0&&events.file_asset_requests.length===0&&events.console_errors.length===0&&events.page_errors.length===0,
       `Offline/console failure: ${JSON.stringify(events)}`);
     Object.assign(result,{status:'passed',completed_at_utc:currentUtc(),all_slides_visible_and_fitted:true,
-      actual_eight_video_playback:true,video_count:8,all_four_task_pairs_verified:true,
-      absolute_rgb_difference_removed:true,all_last_frame_playback:true,leaving_slide_pauses_videos:true});
+      actual_eight_video_playback:scope==='full',video_count:8,all_four_task_pairs_verified:scope==='full',
+      absolute_rgb_difference_removed:true,all_last_frame_playback:scope==='full',leaving_slide_pauses_videos:scope==='full',
+      playback_checks_rerun:scope==='full',playback_policy:scope==='full'?'All eight movies and four pairs were replayed in this run':
+        'Not replayed in this scoped display QA; exact prior media/runtime/source bindings are recorded separately'});
     return result;
   } catch(error) {result.status='failed';result.error=String(error.stack||error);throw Object.assign(error,{location_evidence:result});}
   finally {await context.close();}
 }
 
+function splitPresentation(text) {
+  const scripts=[...text.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/g)].map(match=>({full:match[0],attrs:match[1],text:match[2]}));
+  check(scripts.length===10,'Exactly one data script, eight media scripts and one inline runtime are required');
+  const runtimes=scripts.filter(row=>row.attrs.trim()==='');check(runtimes.length===1,'A single inline presentation runtime is required');
+  const runtime=runtimes[0],barLines=runtime.text.split(/\r?\n/).filter(line=>line.startsWith("document.getElementById('apd-bars').innerHTML="));
+  check(barLines.length===1&&barLines[0].endsWith(".join('');"),'Exactly one isolated complete APD bar rendering statement is required');
+  const runtimeWithoutBar=runtime.text.replace(barLines[0],'[APD BAR STATEMENT]');
+  let outside=text.replace(runtime.full,'[INLINE RUNTIME]');
+  const slide5=[...outside.matchAll(/<section\b(?=[^>]*\bid="slide-5")[^>]*>[\s\S]*?<\/section>/g)];
+  check(slide5.length===1,'One slide-5 section is required');outside=outside.replace(slide5[0][0],'[SLIDE FIVE]');
+  const json=scripts.find(row=>/\bid="presentation-data"/.test(row.attrs));check(json,'Presentation data script absent');
+  return {scripts,runtime,barStatement:barLines[0],runtimeWithoutBar,outside,data:JSON.parse(json.text)};
+}
+
+function compareUnchangedPresentation(priorText,currentText) {
+  const prior=splitPresentation(priorText),current=splitPresentation(currentText);
+  check(prior.runtimeWithoutBar===current.runtimeWithoutBar,'Presentation runtime changed outside the isolated APD bar statement; a new full playback QA is required');
+  check(prior.outside===current.outside,'Presentation changed outside slide 5 and its isolated bar statement; scoped QA cannot inherit prior full evidence');
+  check(same(prior.data,current.data),'Original aggregate/media/renderer/source payload changed; scoped QA cannot inherit prior full evidence');
+  for(let i=0;i<prior.scripts.length;i++)if(prior.scripts[i]!==prior.runtime)
+    check(prior.scripts[i].full===current.scripts[i].full,'Data or embedded media bytes changed; full playback QA is required');
+  validateData(current.data);
+  return {status:'passed',payload_byte_identical:true,embedded_eight_media_byte_identical:true,
+    runtime_outside_bar_statement_byte_identical:true,html_outside_slide5_and_runtime_byte_identical:true,
+    payload_sha256:sha(Buffer.from(prior.scripts[0].text)),runtime_excluding_bar_sha256:sha(Buffer.from(prior.runtimeWithoutBar)),
+    unchanged_html_sha256:sha(Buffer.from(prior.outside)),prior_runtime_sha256:sha(Buffer.from(prior.runtime.text)),
+    current_runtime_sha256:sha(Buffer.from(current.runtime.text)),prior_bar_statement_sha256:sha(Buffer.from(prior.barStatement)),
+    current_bar_statement_sha256:sha(Buffer.from(current.barStatement)),data:current.data};
+}
+
+async function prepareInheritedEvidence(args,inputBytes) {
+  const receipts=[];
+  async function read(file) {const bytes=await fs.readFile(file);receipts.push({path:path.resolve(file),sha256:sha(bytes),bytes:bytes.length});return bytes;}
+  const priorBytes=await read(args['prior-presentation']),qaBytes=await read(args['prior-qa']),reviewBytes=await read(args['prior-review']),verifierBytes=await read(args['prior-verifier']);
+  const priorSha=sha(priorBytes),qa=JSON.parse(qaBytes),review=JSON.parse(reviewBytes),verifierSha=sha(verifierBytes);
+  check(qa.status==='passed'&&same(qa.errors,[])&&qa.presentation_sha256===priorSha&&qa.relocated_sha256===priorSha
+    &&qa.verifier_sha256===verifierSha&&qa.actual_eight_video_playback===true&&qa.all_four_task_pairs_verified===true
+    &&qa.all_last_frame_playback===true&&qa.isolated_single_file_copy_verified===true&&qa.video_count===8,
+    'Prior full playback proof is not passed or is not bound to the preserved HTML/verifier');
+  const equality=compareUnchangedPresentation(priorBytes.toString('utf8'),inputBytes.toString('utf8')),data=equality.data;delete equality.data;
+  const noEvents=events=>events&&['external_requests','file_asset_requests','console_errors','page_errors'].every(key=>same(events[key],[]));
+  for(const name of ['original','relocated']) {
+    const location=qa[name];check(location?.status==='passed'&&noEvents(location.events)&&same(location.sources,data.sources)
+      &&location.actual_eight_video_playback===true&&location.all_four_task_pairs_verified===true,
+      `Prior ${name} full proof has errors or changed numerical source provenance`);
+    check(location.videos?.length===8&&same(location.videos.map(row=>row.id).sort(),[...MEDIA_IDS].sort())
+      &&location.task_pairs?.length===4,'Prior full proof lacks eight exact movies/four task pairs');
+    for(const movie of location.videos) check(movie.encoded_sha256===data.media[movie.id].sha256
+      &&movie.source_render_sha256===data.media[movie.id].source_render.sha256&&movie.decoded_frame_proof===128
+      &&movie.preview_fps===10&&movie.actual_playback?.current_time>=0.3&&movie.actual_playback.paused===false
+      &&movie.last_frame_playback?.target_last_frame_time===12.7&&movie.last_frame_playback.last_presented_media_time>=12.68
+      &&movie.last_frame_playback.ended===true&&movie.leaving_slide_pauses===true,'Prior individual playback proof is incomplete: '+movie.id);
+    for(const pair of location.task_pairs) check(CASES.some(row=>identity(row)===identity(pair))
+      &&pair.range_keyboard_seeks===true&&pair.source_frame_seeks?.length===3
+      &&same(pair.source_frame_seeks.map(row=>row.source_frame),[64,127,0])
+      &&pair.source_frame_seeks.every(row=>row.both_current_frames_decoded===true)
+      &&pair.actual_pair_playback?.length===2&&pair.actual_pair_playback.every(row=>row.current_time>=0.3&&row.paused===false)
+      &&pair.playback_drift_seconds<=0.11&&pair.leaving_slide_pauses_both===true,'Prior paired playback proof is incomplete');
+  }
+  check(review.status==='passed'&&same(review.errors,[])&&noEvents(review.events)&&review.presentation_sha256===priorSha
+    &&review.strict_qa_sha256===sha(qaBytes)&&review.frozen_verifier_sha256===verifierSha
+    &&review.all20_rapid_cancellations_verified===true&&review.all8_first_frames_decoded===true&&review.all_original_evidence_unchanged===true,
+    'Prior cancellation/decoded-frame proof is not passed or bound to the preserved full QA');
+  check(review.cancellations?.length===20&&review.cancellations.every(row=>row.passed===true&&row.all_videos_paused===true)
+    &&new Set(review.cancellations.map(row=>row.slide+'/'+row.action)).size===20,
+    'Prior cancellation proof lacks all twenty distinct passed cases');
+  const reportDataPath=path.join(args['report-dir'],'data','report_data.json'),manifestPath=path.join(args['report-dir'],'report_manifest.json');
+  const reportBytes=await read(reportDataPath),manifestBytes=await read(manifestPath),report=JSON.parse(reportBytes),manifest=JSON.parse(manifestBytes);
+  check(sha(reportBytes)===data.sources.report_data_sha256&&sha(manifestBytes)===data.sources.report_manifest_sha256,
+    'Current original detailed report SHA differs from presentation provenance');
+  check(report.status==='complete'&&report.synthetic_only===false&&manifest.status==='complete'&&report.run_id===data.run_id,
+    'Original detailed report is not a completed actual run');
+  const reportRows=report.impact?.filter(row=>row.dataset==='all');check(reportRows?.length===5,'Original detailed report lacks five overall impact rows');
+  const scalarBindings=[];
+  for(const row of data.aggregates) {
+    const original=reportRows.find(item=>item.objective===row.objective);check(original&&same(row,original),'Embedded aggregate differs from the original detailed report: '+row.objective);
+    for(const key of BAR_METRICS)scalarBindings.push({objective:row.objective,key,value:original[key],unit:'percent',report_path:'impact[dataset=all,objective='+row.objective+'].'+key});
+  }
+  return {schema_version:1,status:'passed',scope:'inherited_playback_only',playback_checks_rerun:false,
+    interpretation:'Prior original/relocated eight-video playback and four-pair/cancellation checks remain applicable only because media, payload, all non-chart runtime and other slides are byte identical; fresh QA tests slide 5 display, layouts and portability',
+    prior_presentation_sha256:priorSha,current_presentation_sha256:sha(inputBytes),prior_qa_sha256:sha(qaBytes),
+    prior_review_sha256:sha(reviewBytes),preserved_full_verifier_sha256:verifierSha,equality,
+    current_original_report_binding:{status:'passed',report_data_sha256:sha(reportBytes),report_manifest_sha256:sha(manifestBytes),
+      exact_all_aggregate_rows:5,post_attack_apd_scalar_bindings:scalarBindings},
+    prior_completed_at_utc:qa.completed_at_utc,prior_review_completed_at_utc:review.completed_at_utc,receipts};
+}
+
+async function verifyReceipts(receipts) {
+  for(const item of receipts) {const bytes=await fs.readFile(item.path);check(bytes.length===item.bytes&&sha(bytes)===item.sha256,'Prior evidence or original report changed during scoped QA: '+item.path);}
+}
+
 async function main() {
   const args=argumentsFrom(process.argv.slice(2));
-  if(args.help){process.stdout.write('Usage: node verify_component_presentation.cjs --presentation ABSHTML --qa-dir ABSSCRATCH --playwright-module MODULE --browser-executable EDGE\n');return 0;}
+  if(args.help){process.stdout.write('Usage: node verify_component_presentation.cjs --presentation ABSHTML --qa-dir ABSSCRATCH --playwright-module MODULE --browser-executable EDGE [--scope full|slide5]\nScoped slide5 QA requires --prior-presentation ABSHTML --prior-qa ABSJSON --prior-review ABSJSON --prior-verifier ABSCJS --report-dir ABSREPORTDIR. Eight-video playback is inherited by exact bindings and is not rerun.\n');return 0;}
   const source=await fs.realpath(args.presentation),qaDir=path.resolve(args['qa-dir']);
   check((await fs.stat(source)).isFile()&&/\.html?$/i.test(source),'Presentation must be one existing HTML file');
   const relative=path.relative(source,qaDir);check(relative!==''&&!qaDir.startsWith(source+path.sep),'QA scratch must not overwrite the presentation');
   await fs.mkdir(qaDir,{recursive:true});const qaPath=path.join(qaDir,'presentation_qa.json');
   try {await fs.access(qaPath);throw new Error('Existing QA evidence must be preserved; choose a fresh --qa-dir');}catch(error){if(error.code!=='ENOENT')throw error;}
   const started=currentUtc(),inputBytes=await fs.readFile(source),inputSha=sha(inputBytes);
-  const output={schema_version:1,status:'running',started_at_utc:started,presentation:source,presentation_sha256:inputSha,
+  const output={schema_version:2,status:'running',scope:args.scope,started_at_utc:started,presentation:source,presentation_sha256:inputSha,
     verifier_sha256:sha(await fs.readFile(__filename)),command:process.argv,cpu_only:true,new_model_inference:false,experiment_modified:false,errors:[]};
   let browser;
   try {
+    if(args.scope==='slide5')output.inherited_playback_evidence=await prepareInheritedEvidence(args,inputBytes);
     const playwright=require(args['playwright-module']);
     browser=await playwright.chromium.launch({headless:true,executablePath:args['browser-executable'],
       args:['--disable-gpu','--disable-background-networking','--disable-extensions','--no-first-run']});
     output.browser_version=browser.version();
-    output.original=await verifyLocation(browser,source,path.join(qaDir,'original'),{screenshots:true,print:true});
+    output.original=await verifyLocation(browser,source,path.join(qaDir,'original'),{screenshots:true,print:true,scope:args.scope});
     const copyDir=await fs.mkdtemp(path.join(qaDir,'단독 이동 복사 ')),copy=path.join(copyDir,'공격 실험 요약 발표.html');
     await fs.copyFile(source,copy,fs.constants.COPYFILE_EXCL);
     check(JSON.stringify(await fs.readdir(copyDir))===JSON.stringify([path.basename(copy)]),'Portable test folder must contain only the renamed HTML');
     output.relocated_html=copy;output.relocated_sha256=sha(await fs.readFile(copy));check(output.relocated_sha256===inputSha,'Renamed presentation bytes differ');
-    output.relocated=await verifyLocation(browser,copy,path.join(qaDir,'relocated'),{screenshots:false,print:false});
+    output.relocated=await verifyLocation(browser,copy,path.join(qaDir,'relocated'),{screenshots:false,print:false,scope:args.scope});
     check(sha(await fs.readFile(source))===inputSha&&sha(await fs.readFile(copy))===inputSha,'Presentation bytes changed during QA');
+    if(args.scope==='slide5') {
+      await verifyReceipts(output.inherited_playback_evidence.receipts);
+      output.inherited_playback_evidence.evidence_unchanged_during_qa=true;
+      const inheritedPath=path.join(qaDir,'inherited_playback_evidence.json');
+      await fs.writeFile(inheritedPath,JSON.stringify(output.inherited_playback_evidence,null,2)+'\n',{encoding:'utf8',flag:'wx'});
+      output.inherited_playback_evidence_file={path:inheritedPath,sha256:sha(await fs.readFile(inheritedPath))};
+    }
     Object.assign(output,{status:'passed',completed_at_utc:currentUtc(),isolated_single_file_copy_verified:true,external_network_requests:0,
-      external_file_asset_requests:0,console_errors:0,actual_eight_video_playback:true,video_count:8,
-      all_four_task_pairs_verified:true,absolute_rgb_difference_removed:true,all_last_frame_playback:true});
+      external_file_asset_requests:0,console_errors:0,actual_eight_video_playback:args.scope==='full',video_count:8,
+      all_four_task_pairs_verified:args.scope==='full',absolute_rgb_difference_removed:true,all_last_frame_playback:args.scope==='full',
+      playback_checks_rerun:args.scope==='full',prior_full_playback_evidence_verified:args.scope==='slide5',
+      fresh_checks:args.scope==='slide5'?['actual_post_attack_apd_source_binding','slide5_percent_values_labels_and_0_100_bar_scale',
+        'all_twelve_slide_layouts_at_four_viewports','inline_images_and_eight_encoded_media_hashes','navigation_and_overlays',
+        'original_and_renamed_html_only_copy_offline','twelve_page_print']:['full_presentation_and_eight_video_playback']});
   } catch(error) {output.status='failed';output.errors.push(String(error.stack||error));if(error.location_evidence)output.failed_location=error.location_evidence;}
   finally {if(browser)await browser.close();}
   output.elapsed_seconds=(Date.parse(currentUtc())-Date.parse(started))/1000;
@@ -679,4 +820,4 @@ async function main() {
 }
 
 if(require.main===module) main().then(code=>{process.exitCode=code;}).catch(error=>{process.stderr.write(String(error.stack||error)+'\n');process.exitCode=1;});
-module.exports={argumentsFrom,validateData,validateLocation:verifyLocation};
+module.exports={argumentsFrom,validateData,validateLocation:verifyLocation,validateBarGeometry,compareUnchangedPresentation,prepareInheritedEvidence};
