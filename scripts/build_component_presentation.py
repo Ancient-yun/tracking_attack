@@ -15,22 +15,12 @@ import subprocess
 
 IMAGE = "sha256:c07e78bf94c671f41392c98e5558cb49296e4187fc7682c51f74467d76539398"
 OBJECTIVES = ["tracking_mse", "tracking_3d", "reconstruction_3d", "confidence", "joint_training"]
-PO = "comparisons/{objective}/po_mini/cab_e_3rd_13/"
-DR = "comparisons/tracking_3d/ds_mini/9c43b3-3_obj_source_left_3/"
+CLIPS = {"po": ("po_mini", "cab_e_3rd_13"), "dr": ("ds_mini", "9c43b3-3_obj_source_left_3")}
 VIDEO_SELECTIONS = {
-    "po_rgb": PO.format(objective="tracking_3d") + "rgb_comparison.mp4",
-    "po_tracking": PO.format(objective="tracking_3d") + "tracking_comparison.mp4",
-    "po_recon_tracking": PO.format(objective="reconstruction_3d") + "tracking_comparison.mp4",
-    "dr_tracking": DR + "tracking_comparison.mp4",
-}
-IMAGE_SELECTIONS = {
-    "cover": PO.format(objective="tracking_3d") + "rgb_frame_127.png",
-    "scatter": "cross_task_apd_scatter.png",
-    "triptych": "geometry_cases/po_mini/cab_e_3rd_13/geometry_attack_triptych_frame_064.png",
-    "po_rgb_poster": PO.format(objective="tracking_3d") + "rgb_frame_000.png",
-    "po_tracking_poster": PO.format(objective="tracking_3d") + "tracking_frame_000.png",
-    "po_recon_tracking_poster": PO.format(objective="reconstruction_3d") + "tracking_frame_000.png",
-    "dr_tracking_poster": DR + "tracking_frame_000.png",
+    f"{prefix}_{objective}_{task}": (dataset, sequence, objective, task)
+    for prefix, (dataset, sequence) in CLIPS.items()
+    for objective in ("tracking_3d", "reconstruction_3d")
+    for task in ("tracking", "reconstruction")
 }
 
 
@@ -53,15 +43,23 @@ def docker_command(entrypoint: str, mounts: list[tuple[Path, str, bool]], args: 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--report-dir", type=Path, required=True)
+    parser.add_argument("--visualization-dir", type=Path, required=True,
+                        help="Fresh task-paired videos rendered from saved experiment arrays")
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--template", type=Path, default=Path(__file__).resolve().parents[1] / "templates/component_presentation.html")
     args = parser.parse_args()
-    report, output = args.report_dir.resolve(), args.output.resolve()
+    report, output, visual = args.report_dir.resolve(), args.output.resolve(), args.visualization_dir.resolve()
     assert not output.is_relative_to(report), "Presentation must not modify the audited report bundle"
     data, manifest = read(report / "data/report_data.json"), read(report / "report_manifest.json")
     assert manifest["status"] == "complete" and manifest["synthetic_only"] is False
     assert data["scope"]["clips"] == 8 and data["scope"]["num_frames"] == 128
     assert data["scope"]["expected_conditions"] == 48 and data["objectives"] == OBJECTIVES
+    visual_manifest_path = visual / "task_visualization_manifest.json"
+    visual_manifest = read(visual_manifest_path)
+    assert visual_manifest["status"] == "complete"
+    assert visual_manifest["cpu_only"] is True and visual_manifest["new_model_inference"] is False
+    media_records = visual_manifest["media"]
+    assert set(media_records) == set(VIDEO_SELECTIONS), "Expected both task results of both attacks in PO and DR"
     inventory = manifest["outputs"]
     output.parent.mkdir(parents=True, exist_ok=True)
     cache = output.parent / ".build/media"
@@ -76,22 +74,42 @@ def main():
         inputs[relative] = actual
         return path
 
-    image_urls = {}
-    for key, relative in IMAGE_SELECTIONS.items():
-        path = verified("assets/" + relative)
-        image_urls[key] = "data:image/png;base64," + base64.b64encode(path.read_bytes()).decode("ascii")
-    sources = {key: verified("assets/" + relative) for key, relative in VIDEO_SELECTIONS.items()}
+    generated_inputs = {}
+
+    def generated(record):
+        path = (visual / record["path"]).resolve()
+        assert path.is_relative_to(visual), "Generated asset escaped visualization directory"
+        actual = sha(path)
+        assert actual == record["sha256"] and path.stat().st_size == record["bytes"], str(path)
+        generated_inputs["task_visualization/" + record["path"]] = actual
+        return path
+
+    def image_url(path):
+        return "data:image/png;base64," + base64.b64encode(path.read_bytes()).decode("ascii")
+
+    image_urls = {"scatter": image_url(verified("assets/cross_task_apd_scatter.png"))}
+    image_urls["cover"] = image_url(generated(media_records["po_tracking_3d_reconstruction"]["posters"]["64"]))
+    sources = {}
+    for key, identity in VIDEO_SELECTIONS.items():
+        record = media_records[key]
+        assert tuple(record[field] for field in ("dataset", "sequence", "objective", "task")) == identity
+        assert record["source_frame_indices"] == list(range(128))
+        assert record["probe"]["decoded_frames"] == 128
+        assert record["probe"]["fps"] == 10 and abs(record["probe"]["duration"] - 12.8) < .02
+        assert record.get("source_evidence"), "Generated movie must bind immutable saved experiment sources"
+        sources[key] = generated(record)
+        image_urls[key + "_poster"] = image_url(generated(record["posters"]["0"]))
 
     def encode(key: str):
         source = sources[key]
         dest, metadata = cache / (key + ".mp4"), cache / (key + ".json")
-        recipe = {"source_sha256": inputs["assets/" + VIDEO_SELECTIONS[key]], "crf": 21, "preset": "veryfast", "pixel_format": "yuv420p", "resize": False}
+        recipe = {"source_sha256": sha(source), "crf": 21, "preset": "veryfast", "pixel_format": "yuv420p", "resize": False}
         reusable = dest.is_file() and metadata.is_file() and read(metadata).get("recipe") == recipe
         if reusable:
             reusable = read(metadata).get("sha256") == sha(dest)
         if not reusable:
-            command = docker_command("ffmpeg", [(report, "/source", True), (cache, "/out", False)], [
-                "-hide_banner", "-loglevel", "error", "-y", "-i", "/source/assets/" + VIDEO_SELECTIONS[key],
+            command = docker_command("ffmpeg", [(visual, "/source", True), (cache, "/out", False)], [
+                "-hide_banner", "-loglevel", "error", "-y", "-i", "/source/" + media_records[key]["path"],
                 "-map", "0:v:0", "-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "21", "-threads", "4",
                 "-pix_fmt", "yuv420p", "-movflags", "+faststart", "/out/" + dest.name,
             ])
@@ -104,9 +122,11 @@ def main():
         numerator, denominator = map(int, probe["r_frame_rate"].split("/"))
         assert int(probe["nb_read_frames"]) == 128 and numerator / denominator == 10
         assert abs(float(probe["duration"]) - 12.8) < .02 and probe["codec_name"] == "h264"
-        result = {"id": key, "path": "assets/" + VIDEO_SELECTIONS[key], "sha256": sha(dest), "bytes": dest.stat().st_size,
+        result = {"id": key, "path": "task_visualization/" + media_records[key]["path"], "sha256": sha(dest), "bytes": dest.stat().st_size,
                   "recipe": recipe, "probe": {"decoded_frames": 128, "fps": 10, "duration": 12.8,
-                  "width": probe["width"], "height": probe["height"], "codec": "h264"}, "cpu_only": True}
+                  "width": probe["width"], "height": probe["height"], "codec": "h264"}, "cpu_only": True,
+                  **dict(zip(("dataset", "sequence", "objective", "task"), VIDEO_SELECTIONS[key])),
+                  "source_render": media_records[key]}
         metadata.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
         print(json.dumps({"video": key, "bytes": result["bytes"], "frames": 128}), flush=True)
         return key, result, base64.b64encode(dest.read_bytes()).decode("ascii")
@@ -116,7 +136,9 @@ def main():
     aggregates = [next(row for row in data["impact"] if row["dataset"] == "all" and row["objective"] == objective) for objective in OBJECTIVES]
     cases = [row for row in data["conditions"] if (row["dataset"], row["sequence"], row["objective"]) in [
         ("po_mini", "cab_e_3rd_13", "tracking_3d"), ("po_mini", "cab_e_3rd_13", "reconstruction_3d"),
-        ("ds_mini", "9c43b3-3_obj_source_left_3", "tracking_3d")]]
+        ("ds_mini", "9c43b3-3_obj_source_left_3", "tracking_3d"),
+        ("ds_mini", "9c43b3-3_obj_source_left_3", "reconstruction_3d")]]
+    assert len(cases) == 4
     payload = {"run_id": data["run_id"], "scope": data["scope"], "aggregates": aggregates,
                "contrasts": data["contrasts"], "cases": cases, "losses": [
                    {"id": "tracking_mse", "expression": "mean ||s_med P1 - G1||^2"},
@@ -125,9 +147,12 @@ def main():
                    {"id": "confidence", "expression": "-0.2 * (mean log max(c1_eff,1) + mean log C2)"},
                    {"id": "joint_training", "expression": "tracking_3d + reconstruction_3d + confidence"}],
                "sources": {"report_data_sha256": sha(report / "data/report_data.json"), "report_manifest_sha256": sha(report / "report_manifest.json"),
-               "loss_structure_sha256": sha(Path(__file__).resolve().parents[1] / "docs/loss_structure.md"), "selected_assets": inputs},
+               "loss_structure_sha256": sha(Path(__file__).resolve().parents[1] / "docs/loss_structure.md"), "selected_assets": inputs,
+               "generated_assets": generated_inputs, "visualization_manifest_sha256": sha(visual_manifest_path)},
                "media": {key: proof for key, (proof, _) in videos.items()}, "slide_count": 12,
-               "selection_policy": "First manifest PO and DR clips, selected without using error magnitude", "standalone": True}
+               "visualization": visual_manifest,
+               "selection_policy": "First manifest PO and DR clips, selected without using error magnitude", "standalone": True,
+               "visualization_revision": 2, "rgb_absolute_difference_included": False}
     html = args.template.read_text(encoding="utf-8")
     for key, url in image_urls.items():
         html = html.replace("{{IMAGE_" + key + "}}", url)

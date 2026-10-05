@@ -10,7 +10,14 @@ const crypto = require('node:crypto');
 const {pathToFileURL} = require('node:url');
 
 const OBJECTIVES = ['tracking_mse','tracking_3d','reconstruction_3d','confidence','joint_training'];
-const MEDIA_IDS = ['po_rgb','po_tracking','po_recon_tracking','dr_tracking'];
+const CASES = [
+  {prefix:'po',dataset:'po_mini',sequence:'cab_e_3rd_13',objective:'tracking_3d',slide_index:7},
+  {prefix:'po',dataset:'po_mini',sequence:'cab_e_3rd_13',objective:'reconstruction_3d',slide_index:8},
+  {prefix:'dr',dataset:'ds_mini',sequence:'9c43b3-3_obj_source_left_3',objective:'tracking_3d',slide_index:9},
+  {prefix:'dr',dataset:'ds_mini',sequence:'9c43b3-3_obj_source_left_3',objective:'reconstruction_3d',slide_index:10}
+];
+const TASKS = ['tracking','reconstruction'];
+const MEDIA_IDS = CASES.flatMap(row=>TASKS.map(task=>`${row.prefix}_${row.objective}_${task}`));
 const METRICS = ['tracking_apd_drop_pp','reconstruction_apd_drop_pp','tracking_epe_increase_m','reconstruction_epe_increase_m'];
 const LOSS_EXPRESSIONS = [
   'mean ||s_med P1 - G1||^2','mean(c1_eff * e1)','mean(C2 * e2)',
@@ -27,7 +34,16 @@ const currentUtc = () => new Date().toISOString();
 const check = (condition, message) => {if(!condition) throw new Error(message);};
 const finite = value => typeof value === 'number' && Number.isFinite(value);
 const close = (actual, expected, message, atol=1e-6) => check(finite(actual)&&finite(expected)&&Math.abs(actual-expected)<=atol, message+`: ${actual} vs ${expected}`);
+const metricClose = (actual,expected,message) => close(actual,expected,message,1e-6+1e-6*Math.abs(expected));
 const normalizeText = text => String(text).replace(/\s+/g,' ').trim();
+const identity = row => `${row.dataset}/${row.sequence}/${row.objective}`;
+const hashString = value => typeof value==='string'&&/^[a-f0-9]{64}$/.test(value);
+const exactFrames = value => Array.isArray(value)&&value.length===128&&value.every((frame,index)=>frame===index);
+const canonical = value => Array.isArray(value)?value.map(canonical):value&&typeof value==='object'?
+  Object.fromEntries(Object.keys(value).sort().map(key=>[key,canonical(value[key])])):value;
+const same = (first,second) => JSON.stringify(canonical(first))===JSON.stringify(canonical(second));
+const safeRelative = value => typeof value==='string'&&value.length>0&&!path.isAbsolute(value)
+  &&!/[\\]/.test(value)&&!value.split('/').some(part=>part==='..'||part==='.'||part==='')&&!/^[a-z]+:/i.test(value);
 
 function argumentsFrom(argv) {
   const allowed = new Set(['presentation','qa-dir','playwright-module','browser-executable']);
@@ -45,6 +61,8 @@ function argumentsFrom(argv) {
 
 function validateData(data) {
   check(data&&typeof data==='object', 'Presentation data JSON is missing');
+  check(data.visualization_revision===2&&data.rgb_absolute_difference_included===false,
+    'Presentation must use task result pairs, with no absolute RGB difference video');
   const scope=data.scope||{};
   check(scope.kind==='full_campaign'&&scope.clips===8&&scope.num_frames===128&&scope.steps===20&&scope.epsilon_255===4
     &&scope.expected_conditions===48&&scope.all_frames===true, 'Presentation scope is not the completed 48-condition / 8-clip / all128-frame experiment');
@@ -72,18 +90,115 @@ function validateData(data) {
     check((row.paired_clips??row.common_clips)===8, 'Direct contrast support is not eight clips');
     check(row.unit===(row.metric.includes('apd')?'percentage_points':'metres'), 'Contrast units differ from APD percentage points / EPE meters');
   }
-  check(data.media&&typeof data.media==='object'&&JSON.stringify(Object.keys(data.media).sort())===JSON.stringify([...MEDIA_IDS].sort()), 'The four representative media IDs differ');
+  check(Array.isArray(data.cases)&&data.cases.length===4&&new Set(data.cases.map(identity)).size===4
+    &&CASES.every(row=>data.cases.some(item=>identity(item)===identity(row))), 'Exactly four PO/DR × two attack cases are required');
+  for(const row of data.cases) for(const metric of METRICS) {
+    const clean=row[metric+'_clean'],attacked=row[metric+'_attacked'];
+    check(finite(row[metric])&&finite(clean)&&finite(attacked),'Case metric must be a finite original scalar: '+identity(row)+'/'+metric);
+    close(row[metric],metric.includes('apd')?clean-attacked:attacked-clean,'Case metric sign or clean/attacked mapping differs: '+identity(row)+'/'+metric);
+  }
+  check(data.visualization?.status==='complete'&&data.visualization.media&&typeof data.visualization.media==='object',
+    'Completed task visualization manifest is required');
+  const visual=data.visualization,preservation=visual.original_report_preservation;
+  check(visual.cpu_only===true&&visual.new_model_inference===false&&visual.GPU_used===false
+    &&visual.frame_count===128&&visual.fps===10&&exactFrames(visual.source_frame_indices)
+    &&visual.rgb_difference_panels===false&&visual.preview_fps_is_capture_fps===false&&visual.run_id===data.run_id
+    &&hashString(visual.run_signature)&&hashString(visual.analysis_sha256)&&same(visual.errors,[]),
+    'Task renderer must preserve the completed run and all128 frames with CPU-only, no-inference provenance');
+  check(preservation?.passed===true&&Number.isInteger(preservation.files)&&preservation.files>0
+    &&hashString(preservation.before_inventory_sha256)&&preservation.before_inventory_sha256===preservation.after_inventory_sha256
+    &&preservation.key_files?.['report_manifest.json']?.sha256===data.sources.report_manifest_sha256
+    &&preservation.key_files?.['data/report_data.json']?.sha256===data.sources.report_data_sha256,
+    'Original detailed report preservation evidence or numerical source SHA differs');
+  const codeNames=['render_component_task_results.py','component_projection.py','component_report_data.py',
+    'render_component_comparisons.py','render_tracking_comparisons.py','render_pgd_comparisons.py','tracking_projection.py'];
+  check(same(Object.keys(visual.source_code_sha256||{}).sort(),[...codeNames].sort())
+    &&Object.values(visual.source_code_sha256).every(hashString),'Task-renderer and immutable adapter code SHA inventory differs');
+  check(hashString(data.sources.visualization_manifest_sha256)&&data.sources.generated_assets,
+    'Visualization manifest provenance and generated asset hashes are required');
+  check(data.media&&typeof data.media==='object'&&same(Object.keys(data.media).sort(),[...MEDIA_IDS].sort())
+    &&same(Object.keys(data.visualization.media).sort(),[...MEDIA_IDS].sort()), 'Eight exact attack/task/stratum media IDs are required');
   for(const id of MEDIA_IDS) {
     const media=data.media[id],probe=media.probe||{};
-    check(typeof media.path==='string'&&media.path.length>0&&/^[a-f0-9]{64}$/.test(media.sha256), `Media source path/SHA is absent: ${id}`);
+    const expected=CASES.find(row=>id.startsWith(row.prefix+'_'+row.objective+'_'));
+    const task=id.slice((expected.prefix+'_'+expected.objective+'_').length),raw=media.source_render;
+    check(media.id===id&&identity(media)===identity(expected)&&media.task===task&&TASKS.includes(task), `Media identity differs: ${id}`);
+    check(raw&&same(raw,data.visualization.media[id])&&raw.id===id&&identity(raw)===identity(expected)&&raw.task===task,
+      `Source renderer record is missing, replaced, or assigned to another case/task: ${id}`);
+    check(safeRelative(raw.path)&&/\.mp4$/i.test(raw.path)&&media.path==='task_visualization/'+raw.path
+      &&hashString(media.sha256)&&Number.isInteger(media.bytes)&&media.bytes>0, `Media source path/size/SHA is absent or unsafe: ${id}`);
     check(probe.decoded_frames===128&&probe.codec==='h264'&&media.cpu_only===true,
       `Media lacks CPU ffprobe decoded128-frame proof: ${id}`);
-    check(/^[a-f0-9]{64}$/.test(media.recipe?.source_sha256||'')
-      &&media.recipe.source_sha256===data.sources.selected_assets?.[media.path],
-      `Encoded video recipe is not bound to the verified original report asset: ${id}`);
+    check(hashString(raw.sha256)&&media.recipe?.source_sha256===raw.sha256
+      &&raw.sha256===data.sources.generated_assets[media.path],
+      `Encoded video recipe is not bound to the fresh source-rendered task video: ${id}`);
+    check(exactFrames(raw.source_frame_indices)&&raw.probe?.decoded_frames===128,
+      `Renderer did not preserve every source frame 0 through127: ${id}`);
+    check(raw.probe.success===true&&raw.probe.method==='ffprobe_count_frames'&&raw.probe.source_sha256===raw.sha256,
+      `Raw task renderer ffprobe is not bound to its own movie bytes: ${id}`);
+    close(raw.probe.fps,10,`Source task video fps differs: ${id}`);
+    close(raw.probe.duration,12.8,`Source task video duration differs: ${id}`,0.05);
+    check(raw.source_evidence&&typeof raw.source_evidence==='object'&&Object.keys(raw.source_evidence).length>0,
+      `Task video lacks immutable original source evidence: ${id}`);
+    const evidence=raw.source_evidence;
+    check(same(Object.keys(evidence).sort(),['attack','clean','sequence']),`Task source evidence groups differ: ${id}`);
+    const expectedEvidence={sequence:['source_npz','sequence.json','targets.npz','reconstruction_gt.npy','reconstruction_valid.npy'],
+      clean:['result.json','tracks.npz','rgb_float32.npy','delta_float32.npy','reconstruction_float32.npy','reconstruction_confidence_float32.npy','components.npz','history.json'],
+      attack:['result.json','tracks.npz','rgb_float32.npy','delta_float32.npy','reconstruction_float32.npy','reconstruction_confidence_float32.npy','components.npz','history.json']};
+    for(const [group,names] of Object.entries(expectedEvidence)) {
+      check(same(Object.keys(evidence[group]||{}).sort(),[...names].sort()),`Immutable saved source inventory differs: ${id}/${group}`);
+      for(const name of names) {
+        const leaf=evidence[group][name],filename=name==='source_npz'?expected.sequence+'.npz':name;
+        const normalized=typeof leaf.path==='string'?leaf.path.replace(/\\/g,'/'):'';
+        const suffix=group==='sequence'?(name==='source_npz'?`/data/worldtrack_release/${expected.dataset}/${filename}`:
+          `/sequences/${expected.dataset}/${expected.sequence}/${filename}`):
+          `/conditions/${group==='clean'?'clean':expected.objective}/${expected.dataset}/${expected.sequence}/${filename}`;
+        check(hashString(leaf.sha256)&&path.isAbsolute(leaf.path||'')&&normalized.endsWith(suffix)
+          &&(leaf.bytes===undefined||Number.isInteger(leaf.bytes)&&leaf.bytes>0),`Original array/scalar source SHA identity differs: ${id}/${group}/${name}`);
+      }
+    }
+    const caseRow=data.cases.find(row=>identity(row)===identity(expected));
+    check(same(raw.selected_state,caseRow.selected_state),`Movie is not from the original selected attack iterate: ${id}`);
+    const metricKeys=task==='tracking'?{apd:'apd3d_all',epe:'epe_all_m'}:{apd:'apd3d',epe:'epe_m'};
+    for(const state of ['clean','attack']) {
+      const suffix=state==='clean'?'clean':'attacked',recorded=raw.case_metrics?.[state],reproduced=raw.metric_reproduction?.[state];
+      check(recorded&&reproduced,`Saved and reproduced task metrics are absent: ${id}/${state}`);
+      close(recorded[metricKeys.apd],caseRow[task+'_apd_drop_pp_'+suffix],`Movie's saved APD differs from the plotted original result: ${id}/${state}`);
+      close(recorded[metricKeys.epe],caseRow[task+'_epe_increase_m_'+suffix],`Movie's saved EPE differs from the plotted original result: ${id}/${state}`);
+      if(task==='tracking') {
+        check(reproduced.tracking_metrics_reproduced===true&&reproduced.recorded_model_replay_passed===true,`Tracking reproduction/replay evidence did not pass: ${id}/${state}`);
+        metricClose(reproduced.tracking_apd_reproduced_percent,recorded[metricKeys.apd],`Reproduced Tracking APD differs: ${id}/${state}`);
+        metricClose(reproduced.tracking_epe_reproduced_m,recorded[metricKeys.epe],`Reproduced Tracking EPE differs: ${id}/${state}`);
+      } else {
+        metricClose(reproduced.apd3d,recorded[metricKeys.apd],`Reproduced Reconstruction APD differs: ${id}/${state}`);
+        metricClose(reproduced.epe_m,recorded[metricKeys.epe],`Reproduced Reconstruction EPE differs: ${id}/${state}`);
+        check(reproduced.passed===true&&reproduced.valid_pixels===recorded.valid_pixels,`Reconstruction GT support changed: ${id}/${state}`);
+      }
+    }
+    check(raw.posters&&same(Object.keys(raw.posters).sort(),['0','127','64']), `Three fixed renderer poster frames are required: ${id}`);
+    for(const frame of ['0','64','127']) {
+      const poster=raw.posters[frame];
+      check(poster&&safeRelative(poster.path)&&/\.png$/i.test(poster.path)&&hashString(poster.sha256)
+        &&Number.isInteger(poster.bytes)&&poster.bytes>0, `Poster source proof differs: ${id}/${frame}`);
+    }
     close(probe.fps,10, `Video is not a 10fps preview: ${id}`);
     close(probe.duration,12.8, `Video duration is not 128/10 seconds: ${id}`,0.05);
     check(Number.isInteger(probe.width)&&probe.width>0&&Number.isInteger(probe.height)&&probe.height>0, `Media dimensions are invalid: ${id}`);
+    check(probe.width===raw.probe.width&&probe.height===raw.probe.height&&media.recipe.resize===false,
+      `Presentation transcode changed the source task-video resolution: ${id}`);
+  }
+  for(const row of CASES) {
+    const tracking=data.media[`${row.prefix}_${row.objective}_tracking`].source_render;
+    const reconstruction=data.media[`${row.prefix}_${row.objective}_reconstruction`].source_render;
+    check(same(tracking.source_evidence,reconstruction.source_evidence)&&same(tracking.selected_state,reconstruction.selected_state)
+      &&same(tracking.clean_selected_state,reconstruction.clean_selected_state),
+      'The task pair must show the same saved clean input and selected attack: '+identity(row));
+  }
+  for(const prefix of ['po','dr']) for(const task of TASKS) {
+    const a=data.media[`${prefix}_tracking_3d_${task}`].source_render,b=data.media[`${prefix}_reconstruction_3d_${task}`].source_render;
+    check(same(a.source_evidence.sequence,b.source_evidence.sequence)&&same(a.source_evidence.clean,b.source_evidence.clean)
+      &&same(a.case_metrics.clean,b.case_metrics.clean)&&same(a.common_display_metadata,b.common_display_metadata),
+      'The two attack examples must share GT, clean sources and display limits: '+prefix+'/'+task);
   }
   return {aggregates,contrasts:overall};
 }
@@ -91,8 +206,8 @@ function validateData(data) {
 async function waitImages(page) {
   await page.evaluate(()=>document.fonts.ready);
   await page.waitForFunction(()=>Array.from(document.images).every(img=>img.complete&&img.naturalWidth>0),{},{timeout:30000});
-  const images=await page.locator('img').evaluateAll(nodes=>nodes.map(img=>({src:img.getAttribute('src'),width:img.naturalWidth,height:img.naturalHeight})));
-  check(images.length>0&&images.every(img=>/^data:image\//.test(img.src||'')&&img.width>0&&img.height>0), 'All presentation images must be loaded inline data:image assets');
+  const images=await page.locator('img').evaluateAll(nodes=>nodes.map(img=>({inline_png:/^data:image\/png;base64,/.test(img.getAttribute('src')||''),width:img.naturalWidth,height:img.naturalHeight})));
+  check(images.length>0&&images.every(img=>img.inline_png&&img.width>0&&img.height>0), 'All presentation images must be loaded inline PNG assets');
   return {count:images.length,all_inline_loaded:true};
 }
 
@@ -140,7 +255,7 @@ async function layout(page) {
     const deck=document.getElementById('deck'),active=document.querySelector('section.slide.active'),r=deck.getBoundingClientRect(),style=getComputedStyle(deck);
     const rect=el=>{const b=el.getBoundingClientRect();return {left:b.left,top:b.top,right:b.right,bottom:b.bottom,width:b.width,height:b.height};};
     const allowed=el=>Boolean(el.closest('[data-overlap-allowed="true"]'))||el.closest('svg')!==null;
-    const targets=Array.from(active.querySelectorAll('h1,h2,h3,p,table,video,img,figure,ul,ol,.card,.chart,.metric-card,.panel'))
+    const targets=Array.from(active.querySelectorAll('h1,h2,h3,p,table,video,img,figure,ul,ol,.card,.chart,.metric-card,.panel,.case-values,.pair-controls,.pair-controls button,.pair-controls label,.pair-controls input,.pair-controls output'))
       .filter(el=>{const s=getComputedStyle(el),b=el.getBoundingClientRect();return s.display!=='none'&&s.visibility!=='hidden'&&Number(s.opacity)!==0&&b.width>0&&b.height>0;});
     const outside=[],overlaps=[];
     for(const el of targets){const b=rect(el);if(!allowed(el)&&(b.left<r.left-2||b.right>r.right+2||b.top<r.top-2||b.bottom>r.bottom+2))
@@ -196,7 +311,11 @@ async function checkBars(page,aggregates) {
       check(sorted.every((r,i)=>!i||r.width+1>=sorted[i-1].width),`Bar widths invert magnitude order for ${metric}`);
     }
   }
-  return {count:rows.length,exact_aggregate_binding:true,proportional_lengths_verified:true,geometry};
+  const factors=geometry.filter(row=>Math.abs(row.value)>1e-12).map(row=>row.width/Math.abs(row.value));
+  const factor=factors.reduce((sum,value)=>sum+value,0)/factors.length;
+  check(factors.every(value=>Math.abs(value-factor)<=Math.max(factor*0.02,0.05)),
+    'The Tracking and Reconstruction bars must use the same percentage-point display scale');
+  return {count:rows.length,exact_aggregate_binding:true,proportional_lengths_verified:true,shared_task_scale_verified:true,geometry};
 }
 
 async function checkLosses(page,data) {
@@ -213,6 +332,80 @@ async function checkLosses(page,data) {
       `Displayed loss ID/expression differs from embedded definition: ${loss.id}`);
   }
   return {rows:5,exact_ids_and_expressions:true};
+}
+
+async function checkCaseDOM(page,data) {
+  const sections=await page.locator('section.slide[data-case]').evaluateAll(nodes=>nodes.map(el=>({
+    id:el.id,dataset:el.dataset.dataset,sequence:el.dataset.sequence,objective:el.dataset.objective,
+    media:Array.from(el.querySelectorAll('video')).map(video=>({id:video.dataset.media,task:video.dataset.task})),
+    play:el.querySelectorAll('[data-play-pair]').length,pause:el.querySelectorAll('[data-pause-pair]').length,
+    seek:Array.from(el.querySelectorAll('input[data-frame-seek]')).map(input=>({type:input.type,min:input.min,max:input.max,step:input.step}))
+  })));
+  check(sections.length===4,'Four attack cases with both task videos must be visible in the deck');
+  for(const row of CASES) {
+    const section=sections.find(item=>identity(item)===identity(row));
+    check(section?.id===`slide-${row.slide_index+1}`&&section.play===1&&section.pause===1&&section.seek.length===1,
+      'Case slide identity or paired playback controls differ: '+identity(row));
+    check(section.seek[0].type==='range'&&section.seek[0].min==='0'&&section.seek[0].max==='127'&&section.seek[0].step==='1',
+      'Case slider must select actual source frames 0 through127: '+identity(row));
+    check(same(section.media,TASKS.map(task=>({id:`${row.prefix}_${row.objective}_${task}`,task}))),
+      'Case must display Tracking then Reconstruction from this same attack: '+identity(row));
+  }
+  const blocks=await page.locator('[data-task-values]').evaluateAll(nodes=>nodes.map(el=>({dataset:el.dataset.dataset,
+    sequence:el.dataset.sequence,objective:el.dataset.objective,task:el.dataset.task,
+    section:el.closest('section.slide').id,text:el.textContent,
+    cells:Array.from(el.querySelectorAll('[data-key]')).map(cell=>({key:cell.dataset.key,digits:cell.dataset.digits,text:cell.textContent}))
+  })));
+  check(blocks.length===8&&new Set(blocks.map(row=>identity(row)+'/'+row.task)).size===8,
+    'Eight independent case/task scalar blocks are required');
+  for(const row of CASES) for(const task of TASKS) {
+    const block=blocks.find(item=>identity(item)===identity(row)&&item.task===task),record=data.cases.find(item=>identity(item)===identity(row));
+    const keys=[task+'_apd_drop_pp_clean',task+'_apd_drop_pp_attacked',task+'_epe_increase_m_clean',task+'_epe_increase_m_attacked'];
+    check(block?.section===`slide-${row.slide_index+1}`&&block.cells.length===4&&same(block.cells.map(cell=>cell.key).sort(),[...keys].sort()),
+      'Original clean/attack APD and EPE must be displayed below their task video: '+identity(row)+'/'+task);
+    for(const cell of block.cells) {
+      const digits=cell.key.includes('_apd_')?2:3;
+      check(cell.digits===String(digits)&&normalizeText(cell.text)===record[cell.key].toFixed(digits),
+        'Displayed case/task scalar differs from the original saved result: '+identity(row)+'/'+cell.key);
+    }
+    check(/APD/.test(block.text)&&/EPE/.test(block.text)&&/%/.test(block.text)&&/m/.test(block.text),
+      'Task values must identify APD percentage and EPE meter units: '+identity(row)+'/'+task);
+  }
+  const text=await page.locator('section.slide').evaluateAll(nodes=>nodes.map(el=>el.textContent+' '+(el.dataset.notes||'')+' '+
+    Array.from(el.querySelectorAll('img,video')).map(item=>item.getAttribute('alt')||item.getAttribute('aria-label')||'').join(' ')).join('\n'));
+  check(!/po_rgb|RGB\s*(?:차분|차이)|\|\s*δ\s*\|\s*[×*]\s*64|absolute\s*RGB\s*difference/i.test(text),
+    'The deck still describes the removed absolute RGB difference visualization');
+  return {cases:4,task_scalar_blocks:8,case_task_identity:true,exact_saved_clean_attack_scalars:true,absolute_rgb_difference_removed:true};
+}
+
+async function checkInlineImageProof(page,data) {
+  const images=await page.locator('img').evaluateAll(async nodes=>{
+    const digest=async url=>{
+      const match=/^data:image\/png;base64,([A-Za-z0-9+/=\s]+)$/.exec(url||'');
+      if(!match)throw new Error('Image is not an inline PNG');
+      const binary=atob(match[1].replace(/\s+/g,'')),bytes=Uint8Array.from(binary,c=>c.charCodeAt(0));
+      const hash=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))).map(x=>x.toString(16).padStart(2,'0')).join('');
+      return {sha256:hash,bytes:bytes.length};
+    };
+    return Promise.all(nodes.map(async el=>({slide:el.closest('section.slide')?.id,...await digest(el.getAttribute('src'))})));
+  });
+  const accepted=new Set([...Object.values(data.sources.selected_assets||{}),...Object.values(data.sources.generated_assets)]);
+  check(images.every(row=>accepted.has(row.sha256)),'An inline PNG is not bound to the verified original plot or source-rendered poster');
+  const cover=images.filter(row=>row.slide==='slide-1'),expected=data.media.po_tracking_3d_reconstruction.source_render.posters['64'];
+  check(cover.length===1&&cover[0].sha256===expected.sha256&&cover[0].bytes===expected.bytes,
+    'Cover must show the actual frame64 Reconstruction result, without the removed RGB difference');
+  const posters=await page.locator('video').evaluateAll(async nodes=>Promise.all(nodes.map(async el=>{
+    const match=/^data:image\/png;base64,([A-Za-z0-9+/=\s]+)$/.exec(el.poster||'');
+    if(!match)throw new Error('Video poster is not an inline PNG');
+    const bytes=Uint8Array.from(atob(match[1].replace(/\s+/g,'')),c=>c.charCodeAt(0));
+    const digest=await crypto.subtle.digest('SHA-256',bytes);
+    return {id:el.dataset.media,sha256:Array.from(new Uint8Array(digest)).map(x=>x.toString(16).padStart(2,'0')).join(''),bytes:bytes.length};
+  })));
+  for(const row of posters) {
+    const proof=data.media[row.id]?.source_render.posters['0'];
+    check(proof&&row.sha256===proof.sha256&&row.bytes===proof.bytes,'Video poster does not match its own actual frame0: '+row.id);
+  }
+  return {count:images.length,source_hashes_verified:true,cover_reconstruction_frame:64,video_posters:posters,images};
 }
 
 async function checkNavigation(page) {
@@ -244,9 +437,9 @@ async function checkNavigation(page) {
   const fullscreenApplicable=await page.evaluate(()=>Boolean(document.fullscreenEnabled&&document.documentElement.requestFullscreen));
   if(fullscreenApplicable) {
     await page.keyboard.press('f');await page.waitForFunction(()=>document.fullscreenElement!==null,{},{timeout:10000});
-    await page.evaluate(()=>document.exitFullscreen());await page.waitForFunction(()=>document.fullscreenElement===null,{},{timeout:10000});
+    await page.keyboard.press('f');await page.waitForFunction(()=>document.fullscreenElement===null,{},{timeout:10000});
     await page.locator('#fullscreen').click();await page.waitForFunction(()=>document.fullscreenElement!==null,{},{timeout:10000});
-    await page.evaluate(()=>document.exitFullscreen());await page.waitForFunction(()=>document.fullscreenElement===null,{},{timeout:10000});
+    await page.locator('#fullscreen').click();await page.waitForFunction(()=>document.fullscreenElement===null,{},{timeout:10000});
   }
   checks.push({check:'fullscreen_keyboard_and_button',applicable:fullscreenApplicable,passed:fullscreenApplicable?true:null});
   await goTo(page,0);
@@ -269,13 +462,16 @@ async function mediaProof(page,id,reference) {
   check(metadata.controls&&!metadata.autoplay&&!metadata.error&&metadata.src.startsWith('blob:'),`Video must use controlled local Blob playback: ${id}`);
   close(metadata.duration,reference.probe.duration,`Browser duration differs from frame-count proof: ${id}`,0.05);
   check(metadata.width===reference.probe.width&&metadata.height===reference.probe.height,`Browser video dimensions differ from source proof: ${id}`);
-  await locator.evaluate(async el=>{el.currentTime=0;await el.play();});
+  await locator.evaluate(async el=>{el.currentTime=0;let timer;try{await Promise.race([el.play(),new Promise((_,reject)=>{
+    timer=setTimeout(()=>reject(new Error('video play() did not resolve')),20000);})]);}finally{clearTimeout(timer);}});
   await page.waitForFunction(mediaId=>document.querySelector(`video[data-media="${mediaId}"]`).currentTime>=0.3,id,{timeout:15000});
   const advanced=await locator.evaluate(el=>({current_time:el.currentTime,paused:el.paused,quality:el.getVideoPlaybackQuality?.()||null}));
   check(advanced.current_time>=0.3&&!advanced.paused,`Video did not actually advance: ${id}`);
   const lastTime=(reference.probe.decoded_frames-1)/reference.probe.fps;
   const last=await locator.evaluate(async (el,lastTime)=>{
     el.pause();el.__lastMediaTime=null;
+    const play=async()=>{let timer;try{await Promise.race([el.play(),new Promise((_,reject)=>{
+      timer=setTimeout(()=>reject(new Error('last-frame play() did not resolve')),20000);})]);}finally{clearTimeout(timer);}};
     const frame=new Promise((resolve,reject)=>{
       const timer=setTimeout(()=>reject(new Error('last decoded frame was not presented')),15000);
       const onFrame=(_now,metadata)=>{if(metadata.mediaTime>=lastTime-0.02){clearTimeout(timer);el.__lastMediaTime=metadata.mediaTime;resolve(metadata.mediaTime);}else el.requestVideoFrameCallback(onFrame);};
@@ -284,19 +480,76 @@ async function mediaProof(page,id,reference) {
     });
     const seek=new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(new Error('last-frame seek timeout')),15000);
       el.addEventListener('seeked',()=>{clearTimeout(timer);resolve();},{once:true});});
-    el.currentTime=lastTime;await seek;await el.play();await frame;
+    el.currentTime=lastTime;await seek;await play();await frame;
     await new Promise((resolve,reject)=>{if(el.ended)return resolve();const timer=setTimeout(()=>reject(new Error('video did not play to end')),15000);
       el.addEventListener('ended',()=>{clearTimeout(timer);resolve();},{once:true});});
     return {target_last_frame_time:lastTime,last_presented_media_time:el.__lastMediaTime,current_time:el.currentTime,ended:el.ended,
       quality:el.getVideoPlaybackQuality?{total_video_frames:el.getVideoPlaybackQuality().totalVideoFrames,dropped_video_frames:el.getVideoPlaybackQuality().droppedVideoFrames}:null};
   },lastTime);
   check(last.ended&&last.last_presented_media_time>=lastTime-0.02,`Last frame/end playback failed: ${id}`);
-  await locator.evaluate(async el=>{el.currentTime=0.2;await el.play();});
+  await locator.evaluate(async el=>{el.currentTime=0.2;let timer;try{await Promise.race([el.play(),new Promise((_,reject)=>{
+    timer=setTimeout(()=>reject(new Error('video restart play() did not resolve')),20000);})]);}finally{clearTimeout(timer);}});
   await page.waitForFunction(mediaId=>!document.querySelector(`video[data-media="${mediaId}"]`).paused,id,{timeout:10000});
   await goTo(page,index===11?0:11);
   check(await locator.evaluate(el=>el.paused),`Leaving a slide did not pause its video: ${id}`);
-  return {id,source_sha256:reference.sha256,decoded_frame_proof:128,preview_fps:10,metadata,actual_playback:advanced,
+  return {id,dataset:reference.dataset,sequence:reference.sequence,objective:reference.objective,task:reference.task,
+    encoded_sha256:reference.sha256,source_render_sha256:reference.source_render.sha256,decoded_frame_proof:128,preview_fps:10,metadata,actual_playback:advanced,
     last_frame_playback:last,leaving_slide_pauses:true};
+}
+
+async function pairProof(page,row) {
+  await goTo(page,row.slide_index);
+  const ids=TASKS.map(task=>`${row.prefix}_${row.objective}_${task}`),section=page.locator(`#slide-${row.slide_index+1}`);
+  await page.evaluate(ids=>Promise.all(ids.map(id=>window.presentation.loadVideo(id))),ids);
+  await section.locator('[data-pause-pair]').click();
+  const seek=section.locator('input[data-frame-seek]'),frames=[];
+  // Starting at64 avoids treating the initial frame0/poster as proof that a
+  // seek really worked. Browser readyState2 and !seeking prove a decoded current
+  // frame; each individual movie's final-frame presentation is checked below.
+  for(const frame of [64,127,0]) {
+    await seek.evaluate((input,frame)=>{input.value=String(frame);input.dispatchEvent(new Event('input',{bubbles:true}));},frame);
+    await page.waitForFunction(({ids,frame})=>ids.every(id=>{
+      const video=document.querySelector(`video[data-media="${id}"]`);
+      return video.paused&&!video.seeking&&video.readyState>=2&&Math.abs(video.currentTime-frame/10)<0.005;
+    }),{ids,frame},{timeout:20000});
+    const state=await section.locator('video').evaluateAll(nodes=>nodes.map(video=>({id:video.dataset.media,
+      current_time:video.currentTime,ready_state:video.readyState,seeking:video.seeking,paused:video.paused,src:video.currentSrc})));
+    check(await seek.inputValue()===String(frame)&&state.every(video=>video.src.startsWith('blob:')),
+      'Paired source-frame slider or Blob decoding differs: '+identity(row));
+    frames.push({source_frame:frame,target_time:frame/10,both_current_frames_decoded:true,videos:state});
+  }
+  // Exercise the actual range control's keyboard behavior independently from
+  // its dispatched input path, and ensure it does not navigate the slide.
+  await seek.focus();await seek.press('End');
+  await page.waitForFunction(ids=>ids.every(id=>Math.abs(document.querySelector(`video[data-media="${id}"]`).currentTime-12.7)<0.005
+    &&!document.querySelector(`video[data-media="${id}"]`).seeking),ids,{timeout:20000});
+  check(await seek.inputValue()==='127'&&await page.evaluate(()=>window.presentation.currentIndex)===row.slide_index,
+    'Range End key should seek both tasks, without navigating to slide12');
+  await seek.press('Home');
+  await page.waitForFunction(ids=>ids.every(id=>document.querySelector(`video[data-media="${id}"]`).currentTime<0.005
+    &&!document.querySelector(`video[data-media="${id}"]`).seeking),ids,{timeout:20000});
+  check(await seek.inputValue()==='0','Range Home key did not select frame0');
+  await section.locator('[data-play-pair]').click();
+  await page.waitForFunction(ids=>ids.every(id=>{const video=document.querySelector(`video[data-media="${id}"]`);
+    return !video.paused&&video.currentTime>=0.3;}),ids,{timeout:20000});
+  const advancing=await section.locator('video').evaluateAll(nodes=>nodes.map(video=>({id:video.dataset.media,current_time:video.currentTime,paused:video.paused})));
+  const drift=Math.abs(advancing[0].current_time-advancing[1].current_time);
+  check(drift<=0.11,'Together-play task videos drifted by more than approximately one preview frame: '+identity(row));
+  await section.locator('[data-pause-pair]').click();
+  const paused=await section.locator('video').evaluateAll(async nodes=>{
+    const before=nodes.map(video=>({id:video.dataset.media,current_time:video.currentTime,paused:video.paused}));
+    await new Promise(resolve=>setTimeout(resolve,200));
+    return {before,after:nodes.map(video=>({id:video.dataset.media,current_time:video.currentTime,paused:video.paused}))};
+  });
+  check(paused.before.every(video=>video.paused)&&paused.after.every((video,index)=>video.paused&&Math.abs(video.current_time-paused.before[index].current_time)<0.005),
+    'Paired pause button failed to stop both task videos: '+identity(row));
+  await section.locator('[data-play-pair]').click();
+  await page.waitForFunction(ids=>ids.every(id=>!document.querySelector(`video[data-media="${id}"]`).paused),ids,{timeout:20000});
+  await goTo(page,0);
+  check(await section.locator('video').evaluateAll(nodes=>nodes.every(video=>video.paused)),
+    'Leaving a case slide did not pause both task videos: '+identity(row));
+  return {...row,ids,source_frame_seeks:frames,range_keyboard_seeks:true,actual_pair_playback:advancing,
+    playback_drift_seconds:drift,max_playback_drift_seconds:0.11,paired_pause:paused,leaving_slide_pauses_both:true};
 }
 
 async function optionalPrint(page,directory) {
@@ -336,10 +589,20 @@ async function verifyLocation(browser,htmlFile,directory,{screenshots=false,prin
     const validated=validateData(data);
     const ids=await page.locator('section.slide').evaluateAll(nodes=>nodes.map(el=>el.id));
     check(JSON.stringify(ids)===JSON.stringify(Array.from({length:12},(_,i)=>`slide-${i+1}`)),'Twelve numbered slides in order are required');
-    result.scope=data.scope;result.sources=data.sources;result.images=await waitImages(page);
+    result.scope=data.scope;result.sources=data.sources;result.visualization_revision=2;result.images=await waitImages(page);
+    result.renderer_evidence={status:data.visualization.status,cpu_only:data.visualization.cpu_only,
+      new_model_inference:data.visualization.new_model_inference,GPU_used:data.visualization.GPU_used,
+      run_signature:data.visualization.run_signature,analysis_sha256:data.visualization.analysis_sha256,
+      original_report_preservation:data.visualization.original_report_preservation,
+      source_code_sha256:data.visualization.source_code_sha256,
+      source_validation_policy:'Hash-bound renderer evidence and exact case/task/source/scalar consistency; browser QA does not reread experiment arrays',
+      source_renders:MEDIA_IDS.map(id=>({id,record_sha256:sha(Buffer.from(JSON.stringify(canonical(data.media[id].source_render)))),
+        movie_sha256:data.media[id].source_render.sha256,source_evidence:data.media[id].source_render.source_evidence,
+        selected_state:data.media[id].source_render.selected_state,case_metrics:data.media[id].source_render.case_metrics}))};
+    result.case_task_dom=await checkCaseDOM(page,data);result.inline_image_proof=await checkInlineImageProof(page,data);
     const videoStates=await page.locator('video').evaluateAll(nodes=>nodes.map(el=>({id:el.dataset.media,src:el.getAttribute('src'),controls:el.controls,
-      autoplay:el.autoplay,slide:Number(el.closest('section.slide').id.slice(6))-1})));
-    check(videoStates.length===4&&videoStates.every(v=>MEDIA_IDS.includes(v.id)&&v.controls&&!v.autoplay), 'Exactly four controlled, non-autoplay videos are required');
+      task:el.dataset.task,autoplay:el.autoplay,slide:Number(el.closest('section.slide').id.slice(6))-1})));
+    check(videoStates.length===8&&new Set(videoStates.map(v=>v.id)).size===8&&videoStates.every(v=>MEDIA_IDS.includes(v.id)&&v.controls&&!v.autoplay), 'Exactly eight controlled, non-autoplay task videos are required');
     check(videoStates.every(v=>v.slide===0||!v.src),'Inactive video sources were eagerly loaded before visiting their slide');
     result.embedded_media=[];
     for(const id of MEDIA_IDS) {
@@ -364,14 +627,17 @@ async function verifyLocation(browser,htmlFile,directory,{screenshots=false,prin
       result.viewport_checks.push({viewport,slides:checks});
       if(screenshots&&viewport.width===390){for(const i of [0,11]){await goTo(page,i);await page.screenshot({path:path.join(directory,`mobile-slide-${i+1}.png`),animations:'disabled'});}}
     }
-    await page.setViewportSize({width:1600,height:1000});result.videos=[];
+    await page.setViewportSize({width:1600,height:1000});result.task_pairs=[];
+    for(const row of CASES)result.task_pairs.push(await pairProof(page,row));
+    result.videos=[];
     for(const id of MEDIA_IDS) result.videos.push(await mediaProof(page,id,data.media[id]));
     await goTo(page,0);
     if(print)result.print=await optionalPrint(page,directory);
     check(events.external_requests.length===0&&events.file_asset_requests.length===0&&events.console_errors.length===0&&events.page_errors.length===0,
       `Offline/console failure: ${JSON.stringify(events)}`);
     Object.assign(result,{status:'passed',completed_at_utc:currentUtc(),all_slides_visible_and_fitted:true,
-      actual_four_video_playback:true,all_last_frame_playback:true,leaving_slide_pauses_videos:true});
+      actual_eight_video_playback:true,video_count:8,all_four_task_pairs_verified:true,
+      absolute_rgb_difference_removed:true,all_last_frame_playback:true,leaving_slide_pauses_videos:true});
     return result;
   } catch(error) {result.status='failed';result.error=String(error.stack||error);throw Object.assign(error,{location_evidence:result});}
   finally {await context.close();}
@@ -402,7 +668,8 @@ async function main() {
     output.relocated=await verifyLocation(browser,copy,path.join(qaDir,'relocated'),{screenshots:false,print:false});
     check(sha(await fs.readFile(source))===inputSha&&sha(await fs.readFile(copy))===inputSha,'Presentation bytes changed during QA');
     Object.assign(output,{status:'passed',completed_at_utc:currentUtc(),isolated_single_file_copy_verified:true,external_network_requests:0,
-      external_file_asset_requests:0,console_errors:0,actual_four_video_playback:true,all_last_frame_playback:true});
+      external_file_asset_requests:0,console_errors:0,actual_eight_video_playback:true,video_count:8,
+      all_four_task_pairs_verified:true,absolute_rgb_difference_removed:true,all_last_frame_playback:true});
   } catch(error) {output.status='failed';output.errors.push(String(error.stack||error));if(error.location_evidence)output.failed_location=error.location_evidence;}
   finally {if(browser)await browser.close();}
   output.elapsed_seconds=(Date.parse(currentUtc())-Date.parse(started))/1000;
